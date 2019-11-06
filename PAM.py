@@ -8,16 +8,16 @@ class PAM:
     def __init__(self, data, k, uses_regression, min_examples_in_cluster):
         print("Finding medoids")
         # appended to using deep copy, holds the medoids
-        self.medoids = []
+        self.medoids = [[]] * k
         # appended to using shallow copy, holds the items clustered around a given medoid
         self.clust = []
         # randomize original data
         random.shuffle(data)
         # randomize initial medoids
-        for i in range(k):
+        for i in range(k-1, -1, -1):
             # randomly initialize medoids to values in the data set
-            self.medoids.append(copy.deepcopy(data[0]))
-            del data[0]
+            self.medoids.append(copy.deepcopy(data[i]))
+            del data[i]
             # initialize clusters to empty arrays
             self.clust.append([])
         previous_medoids = []
@@ -63,16 +63,6 @@ class PAM:
                             self.medoids[m_i] = copy.deepcopy(temp_ex)
             loop_num += 1
         # repeat until no change in medoids (assumming running until convergence) or the specified loop number is reached
-
-        #medoids_num = 0
-        #while medoids_num < len(self.medoids):
-        #    # the medoids are values from the data set, so they should be added to their respective cluster
-        #    self.clust[medoids_num].append(self.medoids[medoids_num])
-        #    if len(self.clust[medoids_num]) == 0:
-        #        print("An error has occured")
-        #        del self.clust[medoids_num]
-        #        del self.medoids[medoids_num]
-        #        continue
         for medoid_num in range(len(self.medoids) - 1, -1, -1):
             if len(self.clust[medoid_num]) < min_examples_in_cluster:
                 del self.clust[medoid_num]

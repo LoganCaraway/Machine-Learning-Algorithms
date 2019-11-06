@@ -7,13 +7,14 @@ import NearestNeighbor as nn
 import Kmeans as km
 import PAM as pam
 import RBFNetwork as rbf
+import FeedforwardNetwork as ffn
 
 #--------------------DATA-MANIPULATION--------------------#
 def openFiles(dataFile):
     lines = open(dataFile, "r").readlines()
     csvLines = csv.reader(lines)
     data = list()
-    save = None
+    #save = None
 
     for line in csvLines:
         tmp = []
@@ -83,28 +84,8 @@ def getNChunks(data, n):
     for i in range(n*chunkLen, dataLen):
         chunks[-1].append(data[i])
     for i in range(len(chunks)):
-        print(len(chunks[i]))
+        print("Length of chunk: ", len(chunks[i]))
     return chunks
-
-#def getDataMetrics():
-#    data_metric = []
-#    if sys.argv[1] == "output_car.data": # classification
-#        data_metric = [False, False, False, False, False, False]
-#    elif sys.argv[1] == "output_machine.data": # classification
-#        data_metric = [False, False, False, False, False, False, False, False, False]
-#    elif sys.argv[1] == "output_segmentation.data": # classification
-#        data_metric = [True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-#    elif sys.argv[1] == "output_winequality-red.csv": # regression
-#        data_metric = [True, True, True, True, True, False, False, True, True, True, True]
-#    elif sys.argv[1] == "output_winequality-white.csv": # regression
-#        data_metric = [True, True, True, True, True, False, False, True, True, True, True]
-#    elif sys.argv[1] == "output_forestfires.data": # regression
-#        data_metric = [False, False, False, False, True, True, True, True, True, False, True, False]
-#    elif sys.argv[1] == "output_abalone.data": # classification
-#        data_metric = [True, True, True, True, True, True, True, False]
-#    elif sys.argv[1] == "glass.data": # classification
-#        data_metric = [True, True, True, True, True, True, True, True, True]
-#    return data_metric
 #--------------------DATA-MANIPULATION-END--------------------#
 
 def logOutputs(data):
@@ -134,6 +115,7 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
     kmeans_missed = []
     pam_missed = []
     rbf_missed = []
+    mlp_missed = []
     for testing in range(10):
         training_set = []
         #testing_set = []
@@ -149,14 +131,18 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
         if use_regression:
             # train algorithms
             kNN = nn.NearestNeighbor(training_set, k, use_regression)
-            kmeans = km.KMeans(training_set, int(len(training_set)/4), use_regression, 2)
+            #kmeans = km.KMeans(training_set, int(len(training_set)/4), use_regression, 2)
             #pam = pam.PAM(training_set, int(len(training_set)/4), use_regression, 2)
-            rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, False)
-            rbfn.trainOutputLayer(training_set, 0.05, 0.03)
+            #rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, False)
+            #rbfn.trainOutputLayer(training_set, 0.05, 0.03)
+            mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+            #mlp.train(training_set, [20], 0.05, 0.03)
+            mlp.tune(training_set[:validation_index], training_set[validation_index:], 2)
             # test algorithms
             base_missed.append(ms.testRegressor(kNN, testing_set))
             kmeans_missed.append(ms.testRegressor(kmeans, testing_set))
             rbf_missed.append(ms.testRegressor(rbfn, testing_set))
+            mlp_missed.append(ms.testRegressor(mlp, testing_set))
             #pam_missed.append(ms.testRegressor(pam, testing_set))
         else:
             # train algorithms
@@ -167,8 +153,8 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
             #eNN.convertToEdited(training_set[validation_index:])
             kmeans = km.KMeans(training_set, len(cNN.training_set), uses_regression, 2)
             rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, True)
-            #rbfn.trainOutputLayer(training_set, 0.3, 0.03)
-            rbfn.tune(training_set[:validation_index], training_set[validation_index:])
+            rbfn.trainOutputLayer(training_set, 0.3, 0.03)
+            #rbfn.tune(training_set[:validation_index], training_set[validation_index:])
             #pam = pam.PAM(training_set,len(eNN.training_set), use_regression, 2)
             # test algorithms
             base_missed.append(ms.testClassifier(kNN, testing_set))
@@ -180,12 +166,14 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
     if use_regression:
         ms.compareRegressors(base_missed, kmeans_missed, "K-Means Clustering")
         ms.compareRegressors(base_missed, rbf_missed, "RBF")
+        ms.compareRegressors(base_missed, mlp_missed, "MLP")
         #ms.compareRegressors(base_missed, pam_missed, "PAM")
     else:
         ms.compareClassifiers(base_missed, cnn_missed, "Condensed Nearest Neighbor")
         #ms.compareClassifiers(base_missed, enn_missed, "Edited Nearest Neighbor")
         ms.compareClassifiers(base_missed, kmeans_missed, "K-Means Clustering")
         ms.compareClassifiers(base_missed, rbf_missed, "RBF")
+        ms.compareClassifiers(base_missed, mlp_missed, "MLP")
         #compareClassifiers(base_missed, pam_missed, "PAM")
 
 if(len(sys.argv) > 2):
@@ -198,8 +186,8 @@ if(len(sys.argv) > 2):
         print("Using classification")
 
     #class_list = getClasses(chunks)
-    print("Using k=1")
-    trainAndTest(chunks, class_list, 1, uses_regression)
+    print("Using k=3")
+    trainAndTest(chunks, class_list, 3, uses_regression)
     k_tenth = int( float(len(chunks[0][0])-1) / 10 )
     if (k_tenth == 0) or (k_tenth == 1):
         k_tenth = 2

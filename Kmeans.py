@@ -7,13 +7,13 @@ class KMeans:
 
     def __init__(self, data, k, uses_regression, min_examples_in_cluster):
         print("Finding centroids")
-        self.centroids = []
+        self.centroids = [[]] * k
         self.clust = []
         # randomize original data
         random.shuffle(data)
-        for i in range(k):
+        for i in range(k-1, -1, -1):
             # randomly initialize centroids to values in the data set (not required to be values in the data set, this is supposed to make it converge faster)
-            self.centroids.append(copy.deepcopy(data[i]))
+            self.centroids[i] = copy.deepcopy(data[i])
             del self.centroids[i][-1]
         oldState = [] #We first define an oldState variable to remember the place the centroids were in
         while (self.centroidsMoved(oldState)):

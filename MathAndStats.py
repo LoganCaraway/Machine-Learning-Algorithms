@@ -36,7 +36,10 @@ def getVariance(mean, examples, num_features):
     return variance
 
 def logistic(x):
-    return 1.0 / (1 + math.exp(-x))
+    if x < 0:
+        return 1 - 1.0/(1 + math.exp(x))
+    else:
+        return 1.0/(1+math.exp(-x))
 
 def normalize(data):
     # the final row is the classes, so we skip it

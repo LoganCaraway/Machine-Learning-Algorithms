@@ -21,9 +21,6 @@ class Neuron:
 
     def getOutput(self, new_inputs):
         # calculate the weighted linear sum
-        #sum = 0.0
-        #for input_num in range(len(new_inputs)):
-        #    sum += new_inputs[input_num] * self.weights[input_num]
         sum = ms.weightedSum(new_inputs, self.weights, len(new_inputs))
         # if a logistic unit, return the logistic(sum)
         if self.is_logistic:

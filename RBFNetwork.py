@@ -11,28 +11,25 @@ class RBFNetwork:
         self.uses_regression = uses_regression
         # in the case of regression, overwrite these inputs
         if uses_regression:
-            out_k = 1
+            self.out_k = 1
             logistic_output = False
         else:
-            out_k = len(clsses)
-
-        self.out_k = out_k
+            self.out_k = len(clsses)
         # add hidden Gaussians
         for hidden_node in range(len(means)):
             self.hidden_layer.append(gaussian.GaussianNeuron(means[hidden_node], clusts[hidden_node]))
         # add output node(s)
-        for output_node in range(out_k):
+        for output_node in range(self.out_k):
             self.output_layer.append(unit.Neuron(len(means), logistic_output))
             if not uses_regression:
                 self.output_layer[output_node].setClass(clsses[output_node])
-        #trainOutputLayer
 
     def getHiddenOutput(self, new_obs):
-        data = [0] * (len(self.hidden_layer)+1)
+        data = []
         # bias node
-        data[0] = 1
+        data.append(1.0)
         for hidden_node_num in range(len(self.hidden_layer)):
-            data[hidden_node_num+1] = self.hidden_layer[hidden_node_num].getOutput(new_obs)
+            data.append(self.hidden_layer[hidden_node_num].getOutput(new_obs))
         return data
 
     # Gradient Descent
@@ -41,13 +38,15 @@ class RBFNetwork:
         data = []
         for example_num in range(len(input_data)):
             data.append(self.getHiddenOutput(input_data[example_num][:-1]))
-        iterations = 25
+        iterations = 75
         # initialize an array of arrays containing the loss for each run for each output node
         loss_history = []
         #min_loss_index = 0
         weight_history = []
         for epoch in range(iterations):
-            loss = [0.0] * self.out_k
+            loss = []
+            for node in range(self.out_k):
+                loss.append(0.0)
             weights_for_examples = []
             for example_num in range(len(data)):
                 if self.uses_regression:
@@ -73,17 +72,6 @@ class RBFNetwork:
                         else:
                             correct = 0
                         error = correct - prob
-                        ## predicted class is positive
-                        #if prob > 0.5:
-                        #    # true class is negative
-                        #    if input_data[example_num][-1] != self.output_layer[output_num].clss:
-                        #        error = -2
-                        ## predicted class is negative
-                        #else:
-                        #    # true class is positive
-                        #    if input_data[example_num][-1] == self.output_layer[output_num].clss:
-                        #        error = 2
-
                         # shallow copy the weights (alias)
                         weights = self.output_layer[output_num].weights
                         # update weights
@@ -92,8 +80,6 @@ class RBFNetwork:
                                 weights[weight_num] = weights[weight_num] + (eta * error * prob * (1.0 - prob) * data[example_num][weight_num])
                         weights_for_output_node = copy.deepcopy(weights)
                         #weights_for_examples.append(copy.deepcopy(weights))
-                        #if error != 0:
-                        #    error = 1
                         squared_loss = error * error
                         loss[output_num] += squared_loss
                     weights_for_examples.append(weights_for_output_node)

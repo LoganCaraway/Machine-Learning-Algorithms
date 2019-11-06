@@ -38,18 +38,10 @@ class NearestNeighbor:
         while True:
             correct_class = original_data[obs_num][len(original_data[0])-1]
             predicted_class = self.classify(original_data[obs_num])
-            # if misclassified, add to the new training set
-            if correct_class != predicted_class:
+            # if misclassified, add to the new training set (if the training set doesn't already contain it)
+            if (correct_class != predicted_class) and not (original_data[obs_num] in self.training_set):
                 self.training_set.append(copy.deepcopy(original_data[obs_num]))
-                #print(len(self.training_set))
                 obs_num = -1
-                # ensure that adding the example to the training set reduces miss rate
-                #missrate = self.testClassification(validation_set)
-                #if not missrate < prev_missrate:
-                #    print(missrate)
-                #    print(prev_missrate)
-                #    break
-                #prev_missrate = missrate
             obs_num += 1
             if obs_num == len(original_data):
                 break
