@@ -131,10 +131,11 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
         if use_regression:
             # train algorithms
             kNN = nn.NearestNeighbor(training_set, k, use_regression)
-            #kmeans = km.KMeans(training_set, int(len(training_set)/4), use_regression, 2)
+            kmeans = km.KMeans(training_set, int(len(training_set)/4), use_regression, 2)
             #pam = pam.PAM(training_set, int(len(training_set)/4), use_regression, 2)
-            #rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, False)
-            #rbfn.trainOutputLayer(training_set, 0.05, 0.03)
+            rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, False)
+            rbfn.tune(training_set[:validation_index], training_set[validation_index:])
+            #rbfn.trainOutputLayer(training_set, 0.05, 0, 10)
             mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
             #mlp.train(training_set, [20], 0.05, 0.03)
             mlp.tune(training_set[:validation_index], training_set[validation_index:], 2)
@@ -153,8 +154,8 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
             #eNN.convertToEdited(training_set[validation_index:])
             kmeans = km.KMeans(training_set, len(cNN.training_set), uses_regression, 2)
             rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, True)
-            rbfn.trainOutputLayer(training_set, 0.3, 0.03)
-            #rbfn.tune(training_set[:validation_index], training_set[validation_index:])
+            #rbfn.trainOutputLayer(training_set, 0.3, 0.03)
+            rbfn.tune(training_set[:validation_index], training_set[validation_index:])
             #pam = pam.PAM(training_set,len(eNN.training_set), use_regression, 2)
             # test algorithms
             base_missed.append(ms.testClassifier(kNN, testing_set))
