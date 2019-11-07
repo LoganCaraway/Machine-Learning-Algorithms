@@ -80,7 +80,7 @@ def testRegressor(algorithm, testing_set):
 
 
 # the arrays handed in represent the absolute error in each trial of each run [run][trial]
-def compareRegressors(base_missed, other_missed, other_name):
+def compareRegressors(base_missed, other_missed, base_name, other_name):
     base_MSEs = []
     other_MSEs = []
     base_absolute = []
@@ -123,10 +123,10 @@ def compareRegressors(base_missed, other_missed, other_name):
     other_absolute_avg /= len(other_absolute)
 
     print("Comparing Mean Square Error:")
-    print("Nearest Neighbor MSE:", base_MSE_avg)
-    print(other_name, "MSE:", other_MSE_avg)
+    print(base_name,"MSE:",base_MSE_avg)
+    print(other_name, "MSE:",other_MSE_avg)
     print("Comparing Absolute Error")
-    print("Nearest Neighbor absolute error:", base_absolute_avg)
+    print(base_name,"absolute error:", base_absolute_avg)
     print(other_name, "absolute error:", other_absolute_avg)
     # run the paired t test on MSEs with 9 degrees of freedom
     pairedTTest(base_MSEs, other_MSEs, 0.05)

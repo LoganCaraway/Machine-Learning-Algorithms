@@ -32,10 +32,9 @@ class FeedforwardNetwork:
 
     # Backpropogation
     def train(self, input_data, hidden_layer_nodes, eta, alpha_momentum, iterations):
-
+        print("Training using: eta =",eta,", alpha =",alpha_momentum,", nodes by layer =",hidden_layer_nodes)
         #-create hidden nodes-#
         for layer in range(len(hidden_layer_nodes)):
-            inputs = 0
             if layer == 0:
                 # if first hidden layer, number of inputs is number of features-1
                 # since the node adds a bias node by default, and that is not desired here
@@ -82,7 +81,7 @@ class FeedforwardNetwork:
                             hidden_outputs.append(self.getHiddenLayerOutput(input_data[example_num][:-1], 0))
                         else:
                             # else, take outputs from previous layer
-                            hidden_outputs.append(self.getHiddenLayerOutput(hidden_outputs[layer-1], layer))
+                            hidden_outputs.append(self.getHiddenLayerOutput(hidden_outputs[-1], layer))
                 # there are no hidden layers
                 else:
                     hidden_outputs.append(input_data[example_num])
@@ -129,8 +128,9 @@ class FeedforwardNetwork:
                 # propogate errors and update weights
                 # start at final layer and move backwards
                 prev_layer_error = []
-                for layer in range(len(self.hidden_layers)-1, -1, -1):
+                for layer in range(len(self.hidden_layers)):
                     delta_weights[example_num].append([])
+                for layer in range(len(self.hidden_layers)-1, -1, -1):
                     # check if the downstream layer is the outputs
                     if layer == (len(self.hidden_layers)-1):
                         prev_layer_error = prev_error
@@ -141,8 +141,8 @@ class FeedforwardNetwork:
                         # add list for the weights of this node
                         delta_weights[example_num][layer+1].append([])
                         sum_downsteam_error = 0.0
-                        for downstream_node in range(len(prev_error)):
-                            sum_downsteam_error += prev_error[downstream_node] * prev_weights[downstream_node][node+1]
+                        for downstream_node in range(len(prev_layer_error)):
+                            sum_downsteam_error += prev_layer_error[downstream_node] * prev_weights[downstream_node][node+1]
                         activation = hidden_outputs[layer][node+1]
                         if self.logistic_nodes:
                             current_error.append(sum_downsteam_error * activation * (1-activation))
@@ -163,7 +163,7 @@ class FeedforwardNetwork:
                                 weights[weight_num] = weights[weight_num] + delta_weights[example_num][layer+1][node][weight_num] + alpha_momentum * prev_delta_weights[layer+1][node][weight_num]
                             else:
                                 weights[weight_num] = weights[weight_num] + delta_weights[example_num][layer+1][node][weight_num]
-                    prev_error = current_error
+                    prev_layer_error = current_error
                     prev_weights = current_weights
                 if alpha_momentum > 0:
                     prev_delta_weights = delta_weights[-1]
@@ -176,12 +176,14 @@ class FeedforwardNetwork:
                 print()
 
     def tune(self, input_data, validation_data, num_layers):
-        eta = 0.3
+        eta = 0.05
         alpha = 0
         hidden_layer_nodes = []
+        #self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
+        print("Tuning nodes per layer for",num_layers,"layers")
         for layer in range(num_layers):
             less_nodes = 1
-            more_nodes = 60
+            more_nodes = 100
             nodes = random.randint(less_nodes+1, more_nodes-1)
             iterations = 4
             for round in range(iterations):
@@ -227,37 +229,47 @@ class FeedforwardNetwork:
                 if (mid_error <= less_error) and (mid_error <= more_error) and round > 0:
                     break
                 elif (more_error <= mid_error) and (more_error <= less_error):
-                    # The top bound is the best but we are already there
-                    if nodes+1 == more_nodes-1:
-                        break
                     old_nodes = nodes
-                    nodes = random.randint(nodes+1, more_nodes-1)
-                    less_nodes = random.randint(old_nodes+1, nodes-1)
-                    more_nodes = random.randint(nodes+1, more_nodes-1)
+                    try:
+                        nodes = random.randint(nodes+1, more_nodes-1)
+                        less_nodes = random.randint(old_nodes+1, nodes-1)
+                        more_nodes = random.randint(nodes+1, more_nodes-1)
+                    except:
+                        nodes = old_nodes
+                        break
                 elif (less_error <= mid_error) and (less_error <= more_error):
-                    # The bottom bound is the best, but we are already there
-                    if nodes-1 == less_nodes+1:
-                        break
                     old_nodes = nodes
-                    nodes = random.randint(less_nodes+1, nodes-1)
-                    less_nodes = random.randint(less_nodes+1, nodes-1)
-                    more_nodes = random.randint(nodes+1, old_nodes-1)
+                    try:
+                        nodes = random.randint(less_nodes+1, nodes-1)
+                        less_nodes = random.randint(less_nodes+1, nodes-1)
+                        more_nodes = random.randint(nodes+1, old_nodes-1)
+                    except:
+                        nodes = old_nodes
+                        break
                 else:
                     if more_error <= less_error:
-                        if nodes+1 == more_nodes-1:
-                            break
                         old_nodes = nodes
-                        nodes = random.randint(nodes + 1, more_nodes - 1)
-                        less_nodes = random.randint(old_nodes + 1, nodes - 1)
-                        more_nodes = random.randint(nodes + 1, more_nodes - 1)
+                        try:
+                            nodes = random.randint(nodes + 1, more_nodes - 1)
+                            less_nodes = random.randint(old_nodes + 1, nodes - 1)
+                            more_nodes = random.randint(nodes + 1, more_nodes - 1)
+                        except:
+                            nodes = old_nodes
+                            break
                     else:
-                        if nodes-1 == less_nodes+1:
-                            break
                         old_nodes = nodes
-                        nodes = random.randint(less_nodes + 1, nodes - 1)
-                        less_nodes = random.randint(less_nodes + 1, nodes - 1)
-                        more_nodes = random.randint(nodes + 1, old_nodes - 1)
+                        try:
+                            nodes = random.randint(less_nodes + 1, nodes - 1)
+                            less_nodes = random.randint(less_nodes + 1, nodes - 1)
+                            more_nodes = random.randint(nodes + 1, old_nodes - 1)
+                        except:
+                            nodes = old_nodes
+                            break
             hidden_layer_nodes.append(nodes)
+        print("Selected nodes by layer: ",hidden_layer_nodes)
+        print("Tuning eta")
+        
+
 
 
 
@@ -274,19 +286,33 @@ class FeedforwardNetwork:
 
     def regress(self, new_obs):
         # get the output for each hidden node of each hidden layer
+        #hidden_outputs = []
+        #if len(self.hidden_layers) > 0:
+        #    for layer in range(len(self.hidden_layers)):
+        #        # if first layer, take data inputs
+        #        if layer == 0:
+        #            hidden_outputs = self.getHiddenLayerOutput(new_obs, 0)
+        #        else:
+        #            # else, take outputs from previous layer
+        #            hidden_outputs = self.getHiddenLayerOutput(hidden_outputs, layer)
+        #else:
+        #    # there are no hidden layers
+        #    hidden_outputs = new_obs
+        #return self.output_layer[0].getOutput(hidden_outputs)
+        # hidden_outputs[layer][node]
         hidden_outputs = []
         if len(self.hidden_layers) > 0:
             for layer in range(len(self.hidden_layers)):
                 # if first layer, take data inputs
                 if layer == 0:
-                    hidden_outputs = self.getHiddenLayerOutput(new_obs, 0)
+                    hidden_outputs.append(self.getHiddenLayerOutput(new_obs, 0))
                 else:
                     # else, take outputs from previous layer
-                    hidden_outputs = self.getHiddenLayerOutput(hidden_outputs, layer)
+                    hidden_outputs.append(self.getHiddenLayerOutput(hidden_outputs[-1], layer))
+        # there are no hidden layers
         else:
-            # there are no hidden layers
             hidden_outputs.append(new_obs)
-        return self.output_layer[0].getOutput(hidden_outputs)
+        return self.output_layer[0].getOutput(hidden_outputs[-1])
 
 
     def classify(self, new_obs):

@@ -130,23 +130,26 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
                 for x in range(len(chunked_data[train])):
                     training_set.append(chunked_data[train][x])
 
-        validation_index = int((float(len(training_set)) * 9 / 10)) - 1
+        validation_index = int((float(len(training_set)) * 8 / 10)) - 1
         if use_regression:
             # train algorithms
-            kNN = nn.NearestNeighbor(training_set, k, use_regression)
-            #kmeans = km.KMeans(training_set, int(len(training_set)/4), use_regression, 2)
-            #pam = pam.PAM(training_set, int(len(training_set)/4), use_regression, 2)
+            #kNN = nn.NearestNeighbor(training_set, k, use_regression)
+            #kmeans = km.KMeans(training_set[:validation_index], int(len(training_set[:validation_index])/4), use_regression, 2)
+            #pm = pam.PAM(training_set[:validation_index], int(len(training_set[:validation_index])/4), use_regression, 2)
             #c_rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, False)
             #c_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
+            #m_rbfn = rbf.RBFNetwork(pm.medoids, pm.clust, clss_list, use_regression, False)
+            #m_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
             mlp_0 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
             mlp_0.tune(training_set[:validation_index], training_set[validation_index:], 2)
             # test algorithms
 
-            base_missed.append(ms.testRegressor(kNN, testing_set))
-            kmeans_missed.append(ms.testRegressor(kmeans, testing_set))
-            #rbf_missed.append(ms.testRegressor(rbfn, testing_set))
+            #base_missed.append(ms.testRegressor(kNN, testing_set))
+            #kmeans_missed.append(ms.testRegressor(kmeans, testing_set))
+            #c_rbf_missed.append(ms.testRegressor(c_rbfn, testing_set))
+            #m_rbf_missed.append(ms.testRegressor(m_rbfn, testing_set))
             #mlp_missed.append(ms.testRegressor(mlp, testing_set))
-            #pam_missed.append(ms.testRegressor(pam, testing_set))
+            #pam_missed.append(ms.testRegressor(pm, testing_set))
         else:
             # train algorithms
             kNN = nn.NearestNeighbor(training_set, k, use_regression)
@@ -183,7 +186,8 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
             mlp_1_missed.append(ms.testClassifier(mlp_1_missed, testing_set))
             mlp_2_missed.append(ms.testClassifier(mlp_2_missed, testing_set))
     if use_regression:
-        pass
+        ms.compareRegressors(c_rbf_missed, m_rbf_missed, "k-means RBF", "PAM RBF")
+        ms.compareRegressors(kmeans_missed, pam_missed, "k-means", "PAM")
         #ms.compareRegressors(base_missed, kmeans_missed, "K-Means Clustering")
         #ms.compareRegressors(base_missed, rbf_missed, "RBF")
         #ms.compareRegressors(base_missed, mlp_missed, "MLP")
