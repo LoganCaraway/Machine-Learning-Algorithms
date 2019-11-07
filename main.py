@@ -111,11 +111,14 @@ def getClasses(data):
 def trainAndTest(chunked_data, clss_list, k, use_regression):
     base_missed = []
     cnn_missed = []
-    enn_missed = []
     kmeans_missed = []
     pam_missed = []
-    rbf_missed = []
-    mlp_missed = []
+    cn_rbf_missed = []
+    c_rbf_missed = []
+    m_rbf_missed = []
+    mlp_0_missed = []
+    mlp_1_missed = []
+    mlp_2_missed = []
     for testing in range(10):
         training_set = []
         #testing_set = []
@@ -131,50 +134,67 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
         if use_regression:
             # train algorithms
             kNN = nn.NearestNeighbor(training_set, k, use_regression)
-            kmeans = km.KMeans(training_set, int(len(training_set)/4), use_regression, 2)
+            #kmeans = km.KMeans(training_set, int(len(training_set)/4), use_regression, 2)
             #pam = pam.PAM(training_set, int(len(training_set)/4), use_regression, 2)
-            rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, False)
-            rbfn.tune(training_set[:validation_index], training_set[validation_index:])
-            #rbfn.trainOutputLayer(training_set, 0.05, 0, 10)
-            mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            #mlp.train(training_set, [20], 0.05, 0.03)
-            mlp.tune(training_set[:validation_index], training_set[validation_index:], 2)
+            #c_rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, False)
+            #c_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
+            mlp_0 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+            mlp_0.tune(training_set[:validation_index], training_set[validation_index:], 2)
             # test algorithms
+
             base_missed.append(ms.testRegressor(kNN, testing_set))
             kmeans_missed.append(ms.testRegressor(kmeans, testing_set))
-            rbf_missed.append(ms.testRegressor(rbfn, testing_set))
-            mlp_missed.append(ms.testRegressor(mlp, testing_set))
+            #rbf_missed.append(ms.testRegressor(rbfn, testing_set))
+            #mlp_missed.append(ms.testRegressor(mlp, testing_set))
             #pam_missed.append(ms.testRegressor(pam, testing_set))
         else:
             # train algorithms
             kNN = nn.NearestNeighbor(training_set, k, use_regression)
+            # RBF based on Condensed NN
             cNN = nn.NearestNeighbor(training_set, k, use_regression)
             cNN.convertToCondensed()
-            #eNN = nn.NearestNeighbor(training_set[:validation_index], k, use_regression)
-            #eNN.convertToEdited(training_set[validation_index:])
+            cNN_clust = []
+            for obs in range(len(cNN.training_set)):
+                cNN_clust.append(kNN.getNeighbors(cNN.training_set[obs])[1:])
+            cn_rbfn = rbf.RBFNetwork(cNN.training_set, cNN_clust, clss_list, use_regression, True)
+            cn_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
+            # RBF based on k-means
             kmeans = km.KMeans(training_set, len(cNN.training_set), uses_regression, 2)
-            rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, True)
-            #rbfn.trainOutputLayer(training_set, 0.3, 0.03)
-            rbfn.tune(training_set[:validation_index], training_set[validation_index:])
-            #pam = pam.PAM(training_set,len(eNN.training_set), use_regression, 2)
+            c_rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, True)
+            c_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
+            # RBF based on PAM
+            pm = pam.PAM(training_set,len(cNN.training_set), use_regression, 2)
+            m_rbfn = rbf.RBFNetwork(pm.medoids, pm.clust, clss_list, use_regression, True)
+            m_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
+            # 0 layer MLP
+            mlp_0 = ffn.FeedforwardNetwork(1, clss_list, "classification", True, True)
+            mlp_0.tune(training_set[:validation_index], training_set[validation_index:], 0)
+            # 1 layer MLP
+            mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "classification", True, True)
+            mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1)
+            # 2 layer MLP
+            mlp_2 = ffn.FeedforwardNetwork(1, clss_list, "classification", True, True)
+            mlp_2.tune(training_set[:validation_index], training_set[validation_index:], 2)
             # test algorithms
-            base_missed.append(ms.testClassifier(kNN, testing_set))
-            cnn_missed.append(ms.testClassifier(cNN, testing_set))
-            #enn_missed.append(ms.testClassifier(eNN, testing_set))
-            kmeans_missed.append(ms.testClassifier(kmeans, testing_set))
-            rbf_missed.append(ms.testClassifier(rbfn, testing_set))
-            #pam_missed.append(ms.testClassifier(pam, testing_set))
+            cn_rbf_missed.append(ms.testClassifier(cn_rbfn, testing_set))
+            c_rbf_missed.append(ms.testClassifier(c_rbfn, testing_set))
+            m_rbf_missed.append(ms.testClassifier(m_rbfn, testing_set))
+            mlp_0_missed.append(ms.testClassifier(mlp_0_missed, testing_set))
+            mlp_1_missed.append(ms.testClassifier(mlp_1_missed, testing_set))
+            mlp_2_missed.append(ms.testClassifier(mlp_2_missed, testing_set))
     if use_regression:
-        ms.compareRegressors(base_missed, kmeans_missed, "K-Means Clustering")
-        ms.compareRegressors(base_missed, rbf_missed, "RBF")
-        ms.compareRegressors(base_missed, mlp_missed, "MLP")
+        pass
+        #ms.compareRegressors(base_missed, kmeans_missed, "K-Means Clustering")
+        #ms.compareRegressors(base_missed, rbf_missed, "RBF")
+        #ms.compareRegressors(base_missed, mlp_missed, "MLP")
         #ms.compareRegressors(base_missed, pam_missed, "PAM")
     else:
-        ms.compareClassifiers(base_missed, cnn_missed, "Condensed Nearest Neighbor")
+        pass
+        #ms.compareClassifiers(base_missed, cnn_missed, "Condensed Nearest Neighbor")
         #ms.compareClassifiers(base_missed, enn_missed, "Edited Nearest Neighbor")
-        ms.compareClassifiers(base_missed, kmeans_missed, "K-Means Clustering")
-        ms.compareClassifiers(base_missed, rbf_missed, "RBF")
-        ms.compareClassifiers(base_missed, mlp_missed, "MLP")
+        #ms.compareClassifiers(base_missed, kmeans_missed, "K-Means Clustering")
+        #ms.compareClassifiers(base_missed, rbf_missed, "RBF")
+        #ms.compareClassifiers(base_missed, mlp_missed, "MLP")
         #compareClassifiers(base_missed, pam_missed, "PAM")
 
 if(len(sys.argv) > 2):

@@ -35,19 +35,14 @@ class RBFNetwork:
 
     # Gradient Descent
     def trainOutputLayer(self, input_data, eta, alpha_momentum, iterations):
-        #random.shuffle(input_data)
+        random.shuffle(input_data)
         data = []
         for example_num in range(len(input_data)):
             data.append(self.getHiddenOutput(input_data[example_num][:-1]))
-        # initialize an array of arrays containing the loss for each run for each output node
-        #loss_history = []
-        #weight_history = []
+        prev_delta_weights = []
         for epoch in range(iterations):
-            loss = []
-            for node in range(self.out_k):
-                loss.append(0.0)
+            loss = [0.0] * self.out_k
             # delta_weights[example_num][node][weight]
-            prev_delta_weights = []
             delta_weights = []
             #weights_for_examples = []
             for example_num in range(len(data)):
@@ -65,15 +60,14 @@ class RBFNetwork:
                     for weight_num in range(len(weights)):
                         delta_weights[example_num][0].append(eta*error*data[example_num][weight_num])
                         if (alpha_momentum > 0) and (example_num > 0):
-                            weights[weight_num] = weights[weight_num] + delta_weights[example_num][0][weight_num] + (alpha_momentum * prev_delta_weights[example_num][weight_num])
+                            weights[weight_num] = weights[weight_num] + delta_weights[example_num][0][weight_num] + (alpha_momentum * prev_delta_weights[0][weight_num])
                         else:
                             weights[weight_num] = weights[weight_num] + delta_weights[example_num][0][weight_num]
-                        #weights[weight_num] = weights[weight_num] + (eta*error*data[example_num][weight_num])
                 else:
                     weights_for_output_node = []
                     for output_num in range(len(self.output_layer)):
                         # append a list to hold the weights for this layer
-                        delta_weights.append([])
+                        delta_weights[example_num].append([])
                         # positive class is the one held in the one-hot node
                         # negative class is any class not held in the one-hot node
                         prob = self.output_layer[output_num].getOutput(data[example_num])
@@ -87,25 +81,20 @@ class RBFNetwork:
                         # update weights
                         if error != 0:
                             for weight_num in range(len(weights)):
-                                delta_weights[output_num].append(eta * error * prob * (1.0 - prob) * data[example_num][weight_num])
+                                delta_weights[example_num][output_num].append(eta * error * prob * (1.0 - prob) * data[example_num][weight_num])
                                 if (alpha_momentum > 0) and (example_num > 0):
-                                    weights[weight_num] = weights[weight_num] + delta_weights[output_num][weight_num] + (alpha_momentum * prev_delta_weights[example_num][weight_num])
+                                    weights[weight_num] = weights[weight_num] + delta_weights[example_num][output_num][weight_num] + (alpha_momentum * prev_delta_weights[output_num][weight_num])
                                 else:
-                                    weights[weight_num] = weights[weight_num] + delta_weights[output_num][weight_num]
-                        weights_for_output_node = copy.deepcopy(weights)
-                        #weights_for_examples.append(copy.deepcopy(weights))
+                                    weights[weight_num] = weights[weight_num] + delta_weights[example_num][output_num][weight_num]
                         squared_loss = error * error
                         loss[output_num] += squared_loss
-                    #weights_for_examples.append(weights_for_output_node)
-            #loss_history.append(loss)
-            #weight_history.append(weights_for_examples)
-            #print("End of Epoch", epoch)
-            prev_delta_weights = copy.deepcopy(delta_weights)
+                if alpha_momentum > 0:
+                    prev_delta_weights = delta_weights[-1]
             if self.uses_regression:
-                print(epoch,"of",iterations)
+                print(epoch,"of",iterations, end=' ')
                 print("MSE:", (loss[0] / len(data)))
             else:
-                print(epoch,"of",iterations)
+                print(epoch,"of",iterations, end=' ')
                 print("MSE per node:", end=' ')
                 # print MSE for each output node
                 for output_num in range(len(self.output_layer)):
@@ -115,7 +104,8 @@ class RBFNetwork:
     def tune(self, input_data, validation_data):
         print("Tuning RBF Network")
         eta = 0.05
-        prev_error = -1
+        lowest_eta = -1
+        lowest_error = -1
         print("Tuning eta")
         while eta <= 0.5:
             self.trainOutputLayer(input_data, eta, 0, 10)
@@ -129,24 +119,22 @@ class RBFNetwork:
                 error = (error * error) / len(validation_data)
             else:
                 error = self.testClassification(validation_data)
-            print("MSE for eta =",eta,":",error)
-            if (prev_error != -1) and (error >= prev_error):
-                eta -= 0.05
-                for node in range(len(self.output_layer)):
-                    self.output_layer[node].resetWeights()
-                break
-            prev_error = error
+            print("MSE for eta =",eta,":",error,"lowest MSE =",lowest_error)
+            if (error < lowest_error) or (eta == 0.05):
+                lowest_eta = eta
+                lowest_error = error
             eta += 0.05
             for node in range(len(self.output_layer)):
                 self.output_layer[node].resetWeights()
-        print("Selected eta =",eta)
+        print("Selected eta =",lowest_eta)
         #self.trainOutputLayer(input_data, eta, 0)
 
         print("Tuning alpha for momentum")
         alpha = 0
-        prev_error = -1
+        lowest_alpha = 0
+        lowest_error = -1
         while alpha < 0.5:
-            self.trainOutputLayer(input_data, eta, alpha, 10)
+            self.trainOutputLayer(input_data, lowest_eta, alpha, 10)
             error = 0
             if self.uses_regression:
                 # get absolute error for each validation observation
@@ -157,19 +145,17 @@ class RBFNetwork:
                 error = (error * error) / len(validation_data)
             else:
                 error = self.testClassification(validation_data)
-            print("MSE for alpha =",alpha,":",error)
-            if (prev_error != -1) and (error >= prev_error):
-                alpha -= 0.1
-                for node in range(len(self.output_layer)):
-                    self.output_layer[node].resetWeights()
-                break
+            print("MSE for alpha =",alpha,":",error,"lowest MSE =",lowest_error)
+            if (error < lowest_error) or (alpha == 0):
+                lowest_alpha = alpha
+                lowest_error = error
             prev_error = error
             alpha += 0.1
             for node in range(len(self.output_layer)):
                 self.output_layer[node].resetWeights()
-        print("Selected alpha =", alpha)
+        print("Selected alpha =", lowest_alpha)
 
-        self.trainOutputLayer(input_data, eta, alpha, 100)
+        self.trainOutputLayer(input_data, lowest_eta, lowest_alpha, 100)
 
 
     # predict the value for a new observation
