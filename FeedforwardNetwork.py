@@ -1,4 +1,5 @@
 import copy
+import time
 import MathAndStats as ms
 import random
 import Neuron as unit
@@ -62,6 +63,8 @@ class FeedforwardNetwork:
         #-----------------#
         random.shuffle(input_data)
         prev_delta_weights = []
+        prev_loss = []
+        worse_epochs = 0
         for epoch in range(iterations):
             loss = [0.0] * self.out_k
             # delta_weights[example_num][layer][node][weight]
@@ -84,7 +87,7 @@ class FeedforwardNetwork:
                             hidden_outputs.append(self.getHiddenLayerOutput(hidden_outputs[-1], layer))
                 # there are no hidden layers
                 else:
-                    hidden_outputs.append(input_data[example_num])
+                    hidden_outputs.append(input_data[example_num][:-1])
                 # get outputs by layer
                 # outputs [layer][node]
                 outputs = []
@@ -175,6 +178,21 @@ class FeedforwardNetwork:
                 print("MSE per node:", end=' ')
                 print()
 
+            if epoch > 10:
+                better = True
+                for output_num in range(len(self.output_layer)):
+                    if loss[output_num] < prev_loss[output_num]:
+                        better = False
+                        break
+                if better:
+                    worse_epochs += 1
+                    if worse_epochs > 2:
+                        print("Converged")
+                        break
+                else:
+                    worse_epochs = 0
+            prev_loss = loss
+
     def tune(self, input_data, validation_data, num_layers):
         eta = 0.05
         alpha = 0
@@ -191,39 +209,36 @@ class FeedforwardNetwork:
                 more_error = 0
                 mid_error = 0
                 hidden_layer_nodes.append(nodes)
-                self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
+                self.train(input_data, hidden_layer_nodes, eta, alpha, 6)
                 del hidden_layer_nodes[-1]
                 if self.output_type == "regression":
-                    # get absolute error for each validation observation
+                    # get absolute error for test
                     results = ms.testRegressor(self, validation_data)
                     for obs in range(len(results)):
-                        mid_error += results[obs]
-                    # convert to MSE
-                    mid_error = (mid_error * mid_error) / len(validation_data)
+                        mid_error += (results[obs] * results[obs])
+                    mid_error /= len(results)
                 self.hidden_layers = []
                 self.output_layer = []
                 hidden_layer_nodes.append(more_nodes)
-                self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
+                self.train(input_data, hidden_layer_nodes, eta, alpha, 6)
                 del hidden_layer_nodes[-1]
                 if self.output_type == "regression":
-                    # get absolute error for each validation observation
+                    # get absolute error for test
                     results = ms.testRegressor(self, validation_data)
                     for obs in range(len(results)):
-                        more_error += results[obs]
-                    # convert to MSE
-                    more_error = (more_error * more_error) / len(validation_data)
+                        more_error += (results[obs] * results[obs])
+                    more_error /= len(results)
                 self.hidden_layers = []
                 self.output_layer = []
                 hidden_layer_nodes.append(less_nodes)
-                self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
+                self.train(input_data, hidden_layer_nodes, eta, alpha, 6)
                 del hidden_layer_nodes[-1]
                 if self.output_type == "regression":
-                    # get absolute error for each validation observation
+                    # get absolute error for test
                     results = ms.testRegressor(self, validation_data)
                     for obs in range(len(results)):
-                        less_error += results[obs]
-                    # convert to MSE
-                    less_error = (less_error * less_error) / len(validation_data)
+                        less_error += (results[obs] * results[obs])
+                    less_error /= len(results)
                 self.hidden_layers = []
                 self.output_layer = []
                 if (mid_error <= less_error) and (mid_error <= more_error) and round > 0:
@@ -267,12 +282,60 @@ class FeedforwardNetwork:
                             break
             hidden_layer_nodes.append(nodes)
         print("Selected nodes by layer: ",hidden_layer_nodes)
+        lowest_eta = -1
+        lowest_error = -1
         print("Tuning eta")
-        
+        while eta <= 0.5:
+            self.train(input_data, hidden_layer_nodes, eta, alpha, 6)
+            error = 0
+            if self.output_type == "regression":
+                # get absolute error for test
+                results = ms.testRegressor(self, validation_data)
+                for obs in range(len(results)):
+                    error += (results[obs] * results[obs])
+                error /= len(results)
+            else:
+                pass
+                #error = self.testClassification(validation_data)
+            print("MSE for eta =", eta, ":", error, "lowest MSE =", lowest_error)
+            if (error < lowest_error) or (eta == 0.05):
+                lowest_eta = eta
+                lowest_error = error
+            eta += 0.05
+            self.hidden_layers = []
+            self.output_layer = []
+        print("Selected eta =", lowest_eta)
+        # self.trainOutputLayer(input_data, eta, 0)
 
-
-
-
+        print("Tuning alpha for momentum")
+        #alpha = 0
+        lowest_alpha = 0
+        lowest_error = -1
+        while alpha < 0.5:
+            self.train(input_data, hidden_layer_nodes, lowest_eta, alpha, 6)
+            error = 0
+            if self.output_type == "regression":
+                # get absolute error for test
+                results = ms.testRegressor(self, validation_data)
+                for obs in range(len(results)):
+                    error += (results[obs] * results[obs])
+                error /= len(results)
+            else:
+                pass
+                #error = self.testClassification(validation_data)
+            print("MSE for alpha =", alpha, ":", error, "lowest MSE =", lowest_error)
+            if (error < lowest_error) or (alpha == 0):
+                lowest_alpha = alpha
+                lowest_error = error
+            prev_error = error
+            alpha += 0.1
+            self.hidden_layers = []
+            self.output_layer = []
+        print("Selected alpha =", lowest_alpha)
+        now = time.time()
+        self.train(input_data, hidden_layer_nodes, lowest_eta, lowest_alpha, 50)
+        done = time.time()
+        self.convergence_time = done - now
 
 
 
@@ -286,39 +349,51 @@ class FeedforwardNetwork:
 
     def regress(self, new_obs):
         # get the output for each hidden node of each hidden layer
-        #hidden_outputs = []
-        #if len(self.hidden_layers) > 0:
-        #    for layer in range(len(self.hidden_layers)):
-        #        # if first layer, take data inputs
-        #        if layer == 0:
-        #            hidden_outputs = self.getHiddenLayerOutput(new_obs, 0)
-        #        else:
-        #            # else, take outputs from previous layer
-        #            hidden_outputs = self.getHiddenLayerOutput(hidden_outputs, layer)
-        #else:
-        #    # there are no hidden layers
-        #    hidden_outputs = new_obs
-        #return self.output_layer[0].getOutput(hidden_outputs)
-        # hidden_outputs[layer][node]
         hidden_outputs = []
         if len(self.hidden_layers) > 0:
             for layer in range(len(self.hidden_layers)):
                 # if first layer, take data inputs
                 if layer == 0:
-                    hidden_outputs.append(self.getHiddenLayerOutput(new_obs, 0))
+                    hidden_outputs = self.getHiddenLayerOutput(new_obs, 0)
                 else:
                     # else, take outputs from previous layer
-                    hidden_outputs.append(self.getHiddenLayerOutput(hidden_outputs[-1], layer))
-        # there are no hidden layers
+                    hidden_outputs = self.getHiddenLayerOutput(hidden_outputs, layer)
         else:
-            hidden_outputs.append(new_obs)
-        return self.output_layer[0].getOutput(hidden_outputs[-1])
+            # there are no hidden layers
+            hidden_outputs = new_obs
+        return self.output_layer[0].getOutput(hidden_outputs)
+        # hidden_outputs[layer][node]
+        #hidden_outputs = []
+        #if len(self.hidden_layers) > 0:
+        #    for layer in range(len(self.hidden_layers)):
+        #        # if first layer, take data inputs
+        #        if layer == 0:
+        #            hidden_outputs.append(self.getHiddenLayerOutput(new_obs, 0))
+        #        else:
+        #            # else, take outputs from previous layer
+        #            hidden_outputs.append(self.getHiddenLayerOutput(hidden_outputs[-1], layer))
+        ## there are no hidden layers
+        #else:
+        #    hidden_outputs.append(new_obs)
+        #return self.output_layer[0].getOutput(hidden_outputs[-1])
 
 
     def classify(self, new_obs):
+        hidden_outputs = []
+        if len(self.hidden_layers) > 0:
+            for layer in range(len(self.hidden_layers)):
+                # if first layer, take data inputs
+                if layer == 0:
+                    hidden_outputs = self.getHiddenLayerOutput(new_obs, 0)
+                else:
+                    # else, take outputs from previous layer
+                    hidden_outputs = self.getHiddenLayerOutput(hidden_outputs, layer)
+        else:
+            # there are no hidden layers
+            hidden_outputs = new_obs
+        #return self.output_layer[0].getOutput(hidden_outputs)
         classes = {}
         for output_num in range(len(self.output_layer)):
-            hidden_outputs = self.getHiddenOutput(new_obs)
             classes[self.output_layer[output_num].clss] = self.output_layer[output_num].getOutput(hidden_outputs)
         decision = sorted(classes.items(), key=lambda elem: elem[1], reverse=True)
         return decision[0]

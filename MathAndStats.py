@@ -133,7 +133,7 @@ def compareRegressors(base_missed, other_missed, base_name, other_name):
 
 # based_missed and other_missed are lists of size 10 containing lists. These inner lists are the result of each of the 10 folds
 # with 0 meaning correct classification and 1 meaning incorrect classification
-def compareClassifiers(base_missed, other_missed, other_name):
+def compareClassifiers(base_missed, other_missed, base_name, other_name):
     # list of MSEs for each run
     base_MSEs = []
     other_MSEs = []
@@ -178,12 +178,12 @@ def compareClassifiers(base_missed, other_missed, other_name):
     other_loss_01_avg /= len(other_loss_01)
 
     print("Comparing 0-1 loss:")
-    print("k-Nearest Neighbor 0-1 Loss:", base_loss_01_avg)
-    print(other_name, "0-1 Loss:", other_loss_01_avg)
+    print(base_name,"0-1 Loss:", base_loss_01_avg)
+    print(other_name,"0-1 Loss:", other_loss_01_avg)
     print("Comparing MSE:")
-    print("k-Nearest Neighbor MSE:", base_MSE_avg)
+    print(base_name,"MSE:", base_MSE_avg)
     print(other_name, "MSE:", other_MSE_avg)
-    print("Paired t-test for comparing k-Nearest Neighbor to", other_name, "using 0-1 loss")
+    print("Paired t-test for comparing",base_name, "to", other_name, "using 0-1 loss")
 
     #print("k-NN", base_loss_01)
     #print(other_name, other_loss_01)

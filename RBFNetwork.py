@@ -1,5 +1,6 @@
 import copy
 import random
+import time
 import MathAndStats as ms
 import GaussianNeuron as gaussian
 import Neuron as unit
@@ -40,6 +41,8 @@ class RBFNetwork:
         for example_num in range(len(input_data)):
             data.append(self.getHiddenOutput(input_data[example_num][:-1]))
         prev_delta_weights = []
+        prev_loss = []
+        worse_epochs = 0
         for epoch in range(iterations):
             loss = [0.0] * self.out_k
             # delta_weights[example_num][node][weight]
@@ -101,6 +104,21 @@ class RBFNetwork:
                     print(loss[output_num] / len(data), end=' ')
                 print()
 
+            if epoch > 0:
+                better = True
+                for output_num in range(len(self.output_layer)):
+                    if loss[output_num] < prev_loss[output_num]:
+                        better = False
+                        break
+                if better:
+                    worse_epochs += 1
+                    if worse_epochs > 2:
+                        print("Converged")
+                        break
+                else:
+                    worse_epochs = 0
+            prev_loss = loss
+
     def tune(self, input_data, validation_data):
         print("Tuning RBF Network")
         eta = 0.05
@@ -111,12 +129,11 @@ class RBFNetwork:
             self.trainOutputLayer(input_data, eta, 0, 10)
             error = 0
             if self.uses_regression:
-                # get absolute error for each validation observation
+                # get absolute error for test
                 results = ms.testRegressor(self, validation_data)
                 for obs in range(len(results)):
-                    error += results[obs]
-                # convert to MSE
-                error = (error * error) / len(validation_data)
+                    error += (results[obs] * results[obs])
+                error /= len(results)
             else:
                 error = self.testClassification(validation_data)
             print("MSE for eta =",eta,":",error,"lowest MSE =",lowest_error)
@@ -140,9 +157,8 @@ class RBFNetwork:
                 # get absolute error for each validation observation
                 results = ms.testRegressor(self, validation_data)
                 for obs in range(len(results)):
-                    error += results[obs]
-                # convert to MSE
-                error = (error * error) / len(validation_data)
+                    error += (results[obs] * results[obs])
+                error /= len(results)
             else:
                 error = self.testClassification(validation_data)
             print("MSE for alpha =",alpha,":",error,"lowest MSE =",lowest_error)
@@ -154,8 +170,10 @@ class RBFNetwork:
             for node in range(len(self.output_layer)):
                 self.output_layer[node].resetWeights()
         print("Selected alpha =", lowest_alpha)
-
-        self.trainOutputLayer(input_data, lowest_eta, lowest_alpha, 100)
+        now = time.time()
+        self.trainOutputLayer(input_data, lowest_eta, lowest_alpha, 50)
+        done = time.time()
+        self.convergence_time = done - now
 
 
     # predict the value for a new observation
@@ -173,9 +191,9 @@ class RBFNetwork:
 
 
     def classify(self, new_obs):
+        hidden_outputs = self.getHiddenOutput(new_obs)
         classes = {}
         for output_num in range(len(self.output_layer)):
-            hidden_outputs = self.getHiddenOutput(new_obs)
             classes[self.output_layer[output_num].clss] = self.output_layer[output_num].getOutput(hidden_outputs)
         decision = sorted(classes.items(), key=lambda elem: elem[1], reverse=True)
         return decision[0]

@@ -8,7 +8,7 @@ class PAM:
     def __init__(self, data, k, uses_regression, min_examples_in_cluster):
         print("Finding medoids")
         # appended to using deep copy, holds the medoids
-        self.medoids = [[]] * k
+        self.medoids = []
         # appended to using shallow copy, holds the items clustered around a given medoid
         self.clust = []
         # randomize original data
@@ -31,11 +31,12 @@ class PAM:
         # estimates for the medoids.
         while self.medoidsMoved(previous_medoids) and (loop_num < 3):
             print("Loop", loop_num)
-            previous_medoids = copy.deepcopy(self.medoids)
+            #previous_medoids = copy.deepcopy(self.medoids)
+            previous_medoids = self.medoids
             for x_i in range(len(data)):
                 # start with considering the first medoid the closest
                 closest_medoid = self.medoids[0]
-                closest_distance = ms.squaredDistance(self.medoids[0], data[x_i], len(self.medoids[0])-1)
+                closest_distance = ms.squaredDistance(closest_medoid, data[x_i], len(closest_medoid)-1)
                 # find argmin m_j ( distance(x_i, m_j) )
                 for m_j in range(1, k):
                     temp_dist = ms.squaredDistance(self.medoids[m_j], data[x_i], len(self.medoids[m_j])-1)
@@ -54,13 +55,13 @@ class PAM:
                         # swap m_i and x_j
                         temp_ex = copy.deepcopy(data[x_j])
                         data[x_j] = copy.deepcopy(self.medoids[m_i])
-                        self.medoids[m_i] = copy.deepcopy(temp_ex)
+                        self.medoids[m_i] = temp_ex
                         distor_prime = self.distortion()
                         # swap back
                         if distor <= distor_prime:
                             temp_ex = copy.deepcopy(data[x_j])
                             data[x_j] = copy.deepcopy(self.medoids[m_i])
-                            self.medoids[m_i] = copy.deepcopy(temp_ex)
+                            self.medoids[m_i] = temp_ex
             loop_num += 1
         # repeat until no change in medoids (assumming running until convergence) or the specified loop number is reached
         for medoid_num in range(len(self.medoids) - 1, -1, -1):
@@ -90,7 +91,7 @@ class PAM:
 
     def distortion(self):
         distortion = 0
-        # for each medoid
+        # for each medoid j
         for j in range(len(self.medoids)):
             # for each example i owned by cluster j
             for i in range(len(self.clust[j])):
