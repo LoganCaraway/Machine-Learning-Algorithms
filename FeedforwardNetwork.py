@@ -33,7 +33,7 @@ class FeedforwardNetwork:
 
     # Backpropogation
     def train(self, input_data, hidden_layer_nodes, eta, alpha_momentum, iterations):
-        print("Training using: eta =",eta,", alpha =",alpha_momentum,", nodes by layer =",hidden_layer_nodes)
+        print("Training FF using: eta =",eta,", alpha =",alpha_momentum,", nodes by layer =",hidden_layer_nodes)
         #-create hidden nodes-#
         for layer in range(len(hidden_layer_nodes)):
             if layer == 0:
@@ -125,7 +125,7 @@ class FeedforwardNetwork:
                     for weight_num in range(len(weights)):
                         delta_weights[example_num][0][output_node].append(eta * error * hidden_outputs[-1][weight_num])
                         if (alpha_momentum > 0) and (example_num > 0):
-                            weights[weight_num] = weights[weight_num] + delta_weights[example_num][0][output_node][weight_num] + (alpha_momentum * prev_delta_weights[output_node][0][weight_num])
+                            weights[weight_num] = weights[weight_num] + delta_weights[example_num][0][output_node][weight_num] + (alpha_momentum * prev_delta_weights[0][output_node][weight_num])
                         else:
                             weights[weight_num] = weights[weight_num] + delta_weights[example_num][0][output_node][weight_num]
                 # propogate errors and update weights
@@ -160,8 +160,6 @@ class FeedforwardNetwork:
                                 delta_weights[example_num][layer+1][node].append(eta * current_error[node] * (hidden_outputs[layer-1][weight_num]))
                             else:
                                 delta_weights[example_num][layer+1][node].append(eta * current_error[node] * (input_data[example_num][weight_num]))
-                                #else:
-                                #    delta_weights[example_num][layer+1][node].append(eta * current_error[node])
                             if (alpha_momentum > 0) and (example_num > 0):
                                 weights[weight_num] = weights[weight_num] + delta_weights[example_num][layer+1][node][weight_num] + alpha_momentum * prev_delta_weights[layer+1][node][weight_num]
                             else:
@@ -171,11 +169,14 @@ class FeedforwardNetwork:
                 if alpha_momentum > 0:
                     prev_delta_weights = delta_weights[-1]
             if self.output_type == "regression":
-                print(epoch,"of",iterations, end=' ')
+                print("FF:",epoch,"of",iterations, end=' ')
                 print("MSE:", (loss[0] / len(input_data)))
             else:
-                print(epoch,"of",iterations, end=' ')
+                print("FF:",epoch,"of",iterations, end=' ')
                 print("MSE per node:", end=' ')
+                # print MSE for each output node
+                for output_num in range(len(self.output_layer)):
+                    print(loss[output_num] / len(input_data), end=' ')
                 print()
 
             if epoch > 10:
@@ -198,7 +199,7 @@ class FeedforwardNetwork:
         alpha = 0
         hidden_layer_nodes = []
         #self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
-        print("Tuning nodes per layer for",num_layers,"layers")
+        print("Tuning FF nodes per layer for",num_layers,"layers")
         for layer in range(num_layers):
             less_nodes = 1
             more_nodes = 100
@@ -209,7 +210,7 @@ class FeedforwardNetwork:
                 more_error = 0
                 mid_error = 0
                 hidden_layer_nodes.append(nodes)
-                self.train(input_data, hidden_layer_nodes, eta, alpha, 6)
+                self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
                 del hidden_layer_nodes[-1]
                 if self.output_type == "regression":
                     # get absolute error for test
@@ -217,10 +218,12 @@ class FeedforwardNetwork:
                     for obs in range(len(results)):
                         mid_error += (results[obs] * results[obs])
                     mid_error /= len(results)
+                elif self.output_type == "classification":
+                    mid_error = self.testClassification(validation_data)
                 self.hidden_layers = []
                 self.output_layer = []
                 hidden_layer_nodes.append(more_nodes)
-                self.train(input_data, hidden_layer_nodes, eta, alpha, 6)
+                self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
                 del hidden_layer_nodes[-1]
                 if self.output_type == "regression":
                     # get absolute error for test
@@ -228,17 +231,21 @@ class FeedforwardNetwork:
                     for obs in range(len(results)):
                         more_error += (results[obs] * results[obs])
                     more_error /= len(results)
+                elif self.output_type == "classification":
+                    more_error = self.testClassification(validation_data)
                 self.hidden_layers = []
                 self.output_layer = []
                 hidden_layer_nodes.append(less_nodes)
-                self.train(input_data, hidden_layer_nodes, eta, alpha, 6)
+                self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
                 del hidden_layer_nodes[-1]
                 if self.output_type == "regression":
-                    # get absolute error for test
+                    # get error for test
                     results = ms.testRegressor(self, validation_data)
                     for obs in range(len(results)):
                         less_error += (results[obs] * results[obs])
                     less_error /= len(results)
+                elif self.output_type == "classification":
+                    less_error = self.testClassification(validation_data)
                 self.hidden_layers = []
                 self.output_layer = []
                 if (mid_error <= less_error) and (mid_error <= more_error) and round > 0:
@@ -284,19 +291,18 @@ class FeedforwardNetwork:
         print("Selected nodes by layer: ",hidden_layer_nodes)
         lowest_eta = -1
         lowest_error = -1
-        print("Tuning eta")
+        print("Tuning FF eta")
         while eta <= 0.5:
-            self.train(input_data, hidden_layer_nodes, eta, alpha, 6)
+            self.train(input_data, hidden_layer_nodes, eta, alpha, 10)
             error = 0
             if self.output_type == "regression":
-                # get absolute error for test
+                # get error for test
                 results = ms.testRegressor(self, validation_data)
                 for obs in range(len(results)):
                     error += (results[obs] * results[obs])
                 error /= len(results)
-            else:
-                pass
-                #error = self.testClassification(validation_data)
+            elif self.output_type == "classification":
+                error = self.testClassification(validation_data)
             print("MSE for eta =", eta, ":", error, "lowest MSE =", lowest_error)
             if (error < lowest_error) or (eta == 0.05):
                 lowest_eta = eta
@@ -304,25 +310,22 @@ class FeedforwardNetwork:
             eta += 0.05
             self.hidden_layers = []
             self.output_layer = []
-        print("Selected eta =", lowest_eta)
-        # self.trainOutputLayer(input_data, eta, 0)
+        print("Selected FF eta =", lowest_eta)
 
-        print("Tuning alpha for momentum")
-        #alpha = 0
+        print("Tuning FF alpha for momentum")
         lowest_alpha = 0
         lowest_error = -1
         while alpha < 0.5:
-            self.train(input_data, hidden_layer_nodes, lowest_eta, alpha, 6)
+            self.train(input_data, hidden_layer_nodes, lowest_eta, alpha, 10)
             error = 0
             if self.output_type == "regression":
-                # get absolute error for test
+                # get error for test
                 results = ms.testRegressor(self, validation_data)
                 for obs in range(len(results)):
                     error += (results[obs] * results[obs])
                 error /= len(results)
-            else:
-                pass
-                #error = self.testClassification(validation_data)
+            elif self.output_type == "classification":
+                error = self.testClassification(validation_data)
             print("MSE for alpha =", alpha, ":", error, "lowest MSE =", lowest_error)
             if (error < lowest_error) or (alpha == 0):
                 lowest_alpha = alpha
@@ -331,9 +334,9 @@ class FeedforwardNetwork:
             alpha += 0.1
             self.hidden_layers = []
             self.output_layer = []
-        print("Selected alpha =", lowest_alpha)
+        print("Selected FF alpha =", lowest_alpha)
         now = time.time()
-        self.train(input_data, hidden_layer_nodes, lowest_eta, lowest_alpha, 50)
+        self.train(input_data, hidden_layer_nodes, lowest_eta, lowest_alpha, 100)
         done = time.time()
         self.convergence_time = done - now
 
@@ -397,3 +400,16 @@ class FeedforwardNetwork:
             classes[self.output_layer[output_num].clss] = self.output_layer[output_num].getOutput(hidden_outputs)
         decision = sorted(classes.items(), key=lambda elem: elem[1], reverse=True)
         return decision[0]
+
+    # will return the MSE for classification
+    def testClassification(self, testing_set):
+        mse = 0
+        for obs in range(len(testing_set)):
+            correct_class = testing_set[obs][-1]
+            predicted = self.classify(testing_set[obs][:-1])
+            if predicted[0] == correct_class:
+                error = (1 - predicted[1])
+            else:
+                error = predicted[1]
+            mse += error * error
+        return mse / len(testing_set)

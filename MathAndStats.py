@@ -43,7 +43,7 @@ def logistic(x):
 
 def normalize(data):
     # the final row is the classes, so we skip it
-    for feature_num in range(len(data[0]) - 1):
+    for feature_num in range(len(data[0]) - 2, -1, -1):
         min = data[0][feature_num]
         max = data[0][feature_num]
         for example in range(len(data)):
@@ -51,12 +51,36 @@ def normalize(data):
                 min = data[example][feature_num]
             elif data[example][feature_num] > max:
                 max = data[example][feature_num]
-        for example in range(len(data)):
-            data[example][feature_num] = (data[example][feature_num] - min) / (max - min)
+        # feature has multiple values
+        if not min == max:
+            for example in range(len(data)):
+                data[example][feature_num] = (data[example][feature_num] - min) / (max - min)
+        else:
+            # remove feature
+            for example in range(len(data)):
+                del data[example][feature_num]
     return data
 
 
 #--------------------Loss Functions and Paired t Test--------------------#
+# When there is an algorithm that can return probabilities, use this tester. else use testClassifier
+def testProbabilisticClassifier(algorithm, testing_set):
+    run_result = []
+    for observation_i in range(len(testing_set)):
+        obs_result = []
+        correct_class = testing_set[observation_i][-1]
+        result = algorithm.classify(testing_set[observation_i][:-1])
+        predicted = result[0]
+        prob = result[1]
+        if predicted == correct_class:
+            obs_result.append(int(0))
+            obs_result.append(1-prob)
+        else:
+            obs_result.append(int(1))
+            obs_result.append(0-prob)
+        run_result.append(obs_result)
+    return run_result
+
 # 0 if it is classified correctly 1 if it is misclassified for each item in the testing set
 def testClassifier(algorithm, testing_set):
     run_result = []
@@ -131,6 +155,63 @@ def compareRegressors(base_missed, other_missed, base_name, other_name):
     # run the paired t test on MSEs with 9 degrees of freedom
     pairedTTest(base_MSEs, other_MSEs, 0.05)
 
+def compareProbabilisticClassifiers(base_missed, other_missed, base_name, other_name):
+    # list of MSEs for each run
+    base_MSEs = []
+    other_MSEs = []
+    # list of 0-1 loss for each run
+    base_loss_01 = []
+    other_loss_01 = []
+    for run_i in range(10):
+        # number of trials for this run
+        trials = len(base_missed[run_i])
+        # calculate the MSE for the base algorithm and the other algorithm for trial i
+        run_i_base_MSE = 0
+        run_i_other_MSE = 0
+        run_i_base_loss_01 = 0
+        run_i_other_loss_01 = 0
+        for trial_i in range(trials):
+            run_i_base_MSE += pow(base_missed[run_i][trial_i][1], 2)
+            run_i_other_MSE += pow(other_missed[run_i][trial_i][1], 2)
+            run_i_base_loss_01 += base_missed[run_i][trial_i][0]
+            run_i_other_loss_01 += other_missed[run_i][trial_i][0]
+        run_i_base_MSE /= trials
+        run_i_other_MSE /= trials
+        run_i_base_loss_01 /= trials
+        run_i_other_loss_01 /= trials
+        # append the MSE for this run to the list of run MSEs
+        base_MSEs.append(run_i_base_MSE)
+        other_MSEs.append(run_i_other_MSE)
+        # append the 0-1 loss for this run to the list of run 0-1 losses
+        base_loss_01.append(run_i_base_loss_01)
+        other_loss_01.append(run_i_other_loss_01)
+    # calculate averages for reporting
+    base_MSE_avg = 0
+    other_MSE_avg = 0
+    base_loss_01_avg = 0
+    other_loss_01_avg = 0
+    for run_i in range(10):
+        base_MSE_avg += base_MSEs[run_i]
+        other_MSE_avg += other_MSEs[run_i]
+        base_loss_01_avg += base_loss_01[run_i]
+        other_loss_01_avg += other_loss_01[run_i]
+    base_MSE_avg /= len(base_MSEs)
+    other_MSE_avg /= len(other_MSEs)
+    base_loss_01_avg /= len(base_loss_01)
+    other_loss_01_avg /= len(other_loss_01)
+
+    print("Comparing 0-1 loss:")
+    print(base_name, "0-1 Loss:", base_loss_01_avg)
+    print(other_name, "0-1 Loss:", other_loss_01_avg)
+    print("Comparing MSE:")
+    print(base_name, "MSE:", base_MSE_avg)
+    print(other_name, "MSE:", other_MSE_avg)
+    print("Paired t-test for comparing", base_name, "to", other_name, "using 0-1 loss")
+
+    # run the paired t test on 0-1 loss with 9 degrees of freedom
+    pairedTTest(base_loss_01, other_loss_01, 0.05)
+
+
 # based_missed and other_missed are lists of size 10 containing lists. These inner lists are the result of each of the 10 folds
 # with 0 meaning correct classification and 1 meaning incorrect classification
 def compareClassifiers(base_missed, other_missed, base_name, other_name):
@@ -185,8 +266,6 @@ def compareClassifiers(base_missed, other_missed, base_name, other_name):
     print(other_name, "MSE:", other_MSE_avg)
     print("Paired t-test for comparing",base_name, "to", other_name, "using 0-1 loss")
 
-    #print("k-NN", base_loss_01)
-    #print(other_name, other_loss_01)
     # run the paired t test on 0-1 loss with 9 degrees of freedom
     pairedTTest(base_loss_01, other_loss_01, 0.05)
 

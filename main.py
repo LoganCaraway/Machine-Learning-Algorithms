@@ -167,9 +167,9 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
             mlp_2_missed.append(ms.testRegressor(mlp_2, testing_set))
         else:
             # train algorithms
-            kNN = nn.NearestNeighbor(training_set, k, use_regression)
+            kNN = nn.NearestNeighbor(training_set[:validation_index], k, use_regression)
             # RBF based on Condensed NN
-            cNN = nn.NearestNeighbor(training_set, k, use_regression)
+            cNN = nn.NearestNeighbor(training_set[:validation_index], k, use_regression)
             cNN.convertToCondensed()
             cNN_clust = []
             for obs in range(len(cNN.training_set)):
@@ -178,34 +178,34 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
             cn_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
             cn_rbfn_time.append(cn_rbfn.convergence_time)
             # RBF based on k-means
-            kmeans = km.KMeans(training_set, len(cNN.training_set), uses_regression, 2)
+            kmeans = km.KMeans(training_set[:validation_index], len(cNN.training_set), uses_regression, 2)
             c_rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, True)
             c_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
             c_rbfn_time.append(c_rbfn.convergence_time)
             # RBF based on PAM
-            pm = pam.PAM(training_set,len(cNN.training_set), use_regression, 2)
+            pm = pam.PAM(training_set[:validation_index],len(cNN.training_set), use_regression, 2)
             m_rbfn = rbf.RBFNetwork(pm.medoids, pm.clust, clss_list, use_regression, True)
             m_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
             m_rbfn_time.append(m_rbfn.convergence_time)
             # 0 layer MLP
-            mlp_0 = ffn.FeedforwardNetwork(1, clss_list, "classification", True, True)
+            mlp_0 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
             mlp_0.tune(training_set[:validation_index], training_set[validation_index:], 0)
             mlp_0_time.append(mlp_0.convergence_time)
             # 1 layer MLP
-            mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "classification", True, True)
+            mlp_1 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
             mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1)
             mlp_1_time.append(mlp_1.convergence_time)
             # 2 layer MLP
-            mlp_2 = ffn.FeedforwardNetwork(1, clss_list, "classification", True, True)
+            mlp_2 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
             mlp_2.tune(training_set[:validation_index], training_set[validation_index:], 2)
             mlp_2_time.append(mlp_2.convergence_time)
             # test algorithms
-            cn_rbfn_missed.append(ms.testClassifier(cn_rbfn, testing_set))
-            c_rbfn_missed.append(ms.testClassifier(c_rbfn, testing_set))
-            m_rbfn_missed.append(ms.testClassifier(m_rbfn, testing_set))
-            mlp_0_missed.append(ms.testClassifier(mlp_0_missed, testing_set))
-            mlp_1_missed.append(ms.testClassifier(mlp_1_missed, testing_set))
-            mlp_2_missed.append(ms.testClassifier(mlp_2_missed, testing_set))
+            cn_rbfn_missed.append(ms.testProbabilisticClassifier(cn_rbfn, testing_set))
+            c_rbfn_missed.append(ms.testProbabilisticClassifier(c_rbfn, testing_set))
+            m_rbfn_missed.append(ms.testProbabilisticClassifier(m_rbfn, testing_set))
+            mlp_0_missed.append(ms.testProbabilisticClassifier(mlp_0, testing_set))
+            mlp_1_missed.append(ms.testProbabilisticClassifier(mlp_1, testing_set))
+            mlp_2_missed.append(ms.testProbabilisticClassifier(mlp_2, testing_set))
     if use_regression:
         ms.compareRegressors(c_rbfn_missed, m_rbfn_missed, "k-means RBF", "PAM RBF")
         ms.pairedTTest(c_rbfn_time, m_rbfn_time, 0.05)
@@ -230,41 +230,54 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
 
         ms.compareRegressors(mlp_1_missed, mlp_2_missed, "1-layer MLP", "2-layer MLP")
         ms.pairedTTest(mlp_1_time, mlp_2_time, 0.05)
+
+        print("average k-means RBF time:",ms.getMean(c_rbfn_time, len(c_rbfn_time)))
+        print("average PAM RBF time:", ms.getMean(m_rbfn_time, len(m_rbfn_time)))
+        print("average 0-layer MLP time:", ms.getMean(mlp_0_time, len(mlp_0_time)))
+        print("average 1-layer MLP time:", ms.getMean(mlp_1_time, len(mlp_1_time)))
+        print("average 2-layer MLP time:", ms.getMean(mlp_2_time, len(mlp_2_time)))
     else:
-        ms.compareClassifiers(cn_rbfn_missed, c_rbfn_missed, "CNN RBF", "k-means RBF")
+        ms.compareProbabilisticClassifiers(cn_rbfn_missed, c_rbfn_missed, "CNN RBF", "k-means RBF")
         ms.pairedTTest(cn_rbfn_time, c_rbfn_time, 0.05)
-        ms.compareClassifiers(cn_rbfn_missed, m_rbfn_missed, "CNN RBF", "PAM RBF")
+        ms.compareProbabilisticClassifiers(cn_rbfn_missed, m_rbfn_missed, "CNN RBF", "PAM RBF")
         ms.pairedTTest(cn_rbfn_time, m_rbfn_time, 0.05)
-        ms.compareClassifiers(cn_rbfn_missed, mlp_0_missed, "CNN RBF", "0-layer MLP")
+        ms.compareProbabilisticClassifiers(cn_rbfn_missed, mlp_0_missed, "CNN RBF", "0-layer MLP")
         ms.pairedTTest(cn_rbfn_time, mlp_0_time, 0.05)
-        ms.compareClassifiers(cn_rbfn_missed, mlp_1_missed, "CNN RBF", "1-layer MLP")
+        ms.compareProbabilisticClassifiers(cn_rbfn_missed, mlp_1_missed, "CNN RBF", "1-layer MLP")
         ms.pairedTTest(cn_rbfn_time, mlp_1_time, 0.05)
-        ms.compareClassifiers(cn_rbfn_missed, mlp_2_missed, "CNN RBF", "2-layer MLP")
+        ms.compareProbabilisticClassifiers(cn_rbfn_missed, mlp_2_missed, "CNN RBF", "2-layer MLP")
         ms.pairedTTest(cn_rbfn_time, mlp_2_time, 0.05)
 
-        ms.compareClassifiers(c_rbfn_missed, m_rbfn_missed, "k-means RBF", "PAM RBF")
+        ms.compareProbabilisticClassifiers(c_rbfn_missed, m_rbfn_missed, "k-means RBF", "PAM RBF")
         ms.pairedTTest(c_rbfn_time, m_rbfn_time, 0.05)
-        ms.compareClassifiers(c_rbfn_missed, mlp_0_missed, "k-means RBF", "0-layer MLP")
+        ms.compareProbabilisticClassifiers(c_rbfn_missed, mlp_0_missed, "k-means RBF", "0-layer MLP")
         ms.pairedTTest(c_rbfn_time, mlp_0_time, 0.05)
-        ms.compareClassifiers(c_rbfn_missed, mlp_1_missed, "k-means RBF", "1-layer MLP")
+        ms.compareProbabilisticClassifiers(c_rbfn_missed, mlp_1_missed, "k-means RBF", "1-layer MLP")
         ms.pairedTTest(c_rbfn_time, mlp_1_time, 0.05)
-        ms.compareClassifiers(c_rbfn_missed, mlp_2_missed, "k-means RBF", "2-layer MLP")
+        ms.compareProbabilisticClassifiers(c_rbfn_missed, mlp_2_missed, "k-means RBF", "2-layer MLP")
         ms.pairedTTest(c_rbfn_time, mlp_2_time, 0.05)
 
-        ms.compareClassifiers(m_rbfn_missed, mlp_0_missed, "PAM RBF", "0-layer MLP")
+        ms.compareProbabilisticClassifiers(m_rbfn_missed, mlp_0_missed, "PAM RBF", "0-layer MLP")
         ms.pairedTTest(m_rbfn_time, mlp_0_time, 0.05)
-        ms.compareClassifiers(m_rbfn_missed, mlp_1_missed, "PAM RBF", "1-layer MLP")
+        ms.compareProbabilisticClassifiers(m_rbfn_missed, mlp_1_missed, "PAM RBF", "1-layer MLP")
         ms.pairedTTest(m_rbfn_time, mlp_1_time, 0.05)
-        ms.compareClassifiers(m_rbfn_missed, mlp_2_missed, "PAM RBF", "2-layer MLP")
+        ms.compareProbabilisticClassifiers(m_rbfn_missed, mlp_2_missed, "PAM RBF", "2-layer MLP")
         ms.pairedTTest(m_rbfn_time, mlp_2_time, 0.05)
 
-        ms.compareClassifiers(mlp_0_missed, mlp_1_missed, "0-layer MLP", "1-layer MLP")
+        ms.compareProbabilisticClassifiers(mlp_0_missed, mlp_1_missed, "0-layer MLP", "1-layer MLP")
         ms.pairedTTest(mlp_0_time, mlp_1_time, 0.05)
-        ms.compareClassifiers(mlp_0_missed, mlp_2_missed, "0-layer MLP", "2-layer MLP")
+        ms.compareProbabilisticClassifiers(mlp_0_missed, mlp_2_missed, "0-layer MLP", "2-layer MLP")
         ms.pairedTTest(mlp_0_time, mlp_2_time, 0.05)
 
-        ms.compareClassifiers(mlp_1_missed, mlp_2_missed, "0-layer MLP", "2-layer MLP")
+        ms.compareProbabilisticClassifiers(mlp_1_missed, mlp_2_missed, "1-layer MLP", "2-layer MLP")
         ms.pairedTTest(mlp_1_time, mlp_2_time, 0.05)
+
+        print("average CNN RBF time:", ms.getMean(cn_rbfn_time, len(cn_rbfn_time)))
+        print("average k-means RBF time:", ms.getMean(c_rbfn_time, len(c_rbfn_time)))
+        print("average PAM RBF time:", ms.getMean(m_rbfn_time, len(m_rbfn_time)))
+        print("average 0-layer MLP time:", ms.getMean(mlp_0_time, len(mlp_0_time)))
+        print("average 1-layer MLP time:", ms.getMean(mlp_1_time, len(mlp_1_time)))
+        print("average 2-layer MLP time:", ms.getMean(mlp_2_time, len(mlp_2_time)))
 
 if(len(sys.argv) > 2):
     chunks, class_list = openFiles(sys.argv[1])
@@ -275,18 +288,7 @@ if(len(sys.argv) > 2):
     else:
         print("Using classification")
 
-    #class_list = getClasses(chunks)
     print("Using k=3")
     trainAndTest(chunks, class_list, 3, uses_regression)
-    k_tenth = int( float(len(chunks[0][0])-1) / 10 )
-    if (k_tenth == 0) or (k_tenth == 1):
-        k_tenth = 2
-    print("Using k is one tenth of the number of features (rounded up to 2). k =",k_tenth)
-    #trainAndTest(chunks, k_tenth, uses_regression)
-    k_root = int( pow(float(len(chunks[0][0])-1), 0.5) )
-    if (k_root == 0) or (k_root == 1):
-        k_root = 2
-    print("Using k is the square root of the number of features (rounded up to 2). k =", k_root)
-    #trainAndTest(chunks, k_root, uses_regression)
 else:
     print("Usage:\t<dataFile.data> <r> (for regression, use any other character for classification)")

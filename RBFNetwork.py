@@ -36,6 +36,7 @@ class RBFNetwork:
 
     # Gradient Descent
     def trainOutputLayer(self, input_data, eta, alpha_momentum, iterations):
+        print("Training RBF using: eta =", eta, ", alpha =", alpha_momentum)
         random.shuffle(input_data)
         data = []
         for example_num in range(len(input_data)):
@@ -94,10 +95,10 @@ class RBFNetwork:
                 if alpha_momentum > 0:
                     prev_delta_weights = delta_weights[-1]
             if self.uses_regression:
-                print(epoch,"of",iterations, end=' ')
+                print("RBF:", epoch,"of",iterations, end=' ')
                 print("MSE:", (loss[0] / len(data)))
             else:
-                print(epoch,"of",iterations, end=' ')
+                print("RBF:",epoch,"of",iterations, end=' ')
                 print("MSE per node:", end=' ')
                 # print MSE for each output node
                 for output_num in range(len(self.output_layer)):
@@ -124,7 +125,7 @@ class RBFNetwork:
         eta = 0.05
         lowest_eta = -1
         lowest_error = -1
-        print("Tuning eta")
+        print("Tuning RBF eta")
         while eta <= 0.5:
             self.trainOutputLayer(input_data, eta, 0, 10)
             error = 0
@@ -143,10 +144,10 @@ class RBFNetwork:
             eta += 0.05
             for node in range(len(self.output_layer)):
                 self.output_layer[node].resetWeights()
-        print("Selected eta =",lowest_eta)
+        print("Selected RBF eta =",lowest_eta)
         #self.trainOutputLayer(input_data, eta, 0)
 
-        print("Tuning alpha for momentum")
+        print("Tuning RBF alpha for momentum")
         alpha = 0
         lowest_alpha = 0
         lowest_error = -1
@@ -169,9 +170,9 @@ class RBFNetwork:
             alpha += 0.1
             for node in range(len(self.output_layer)):
                 self.output_layer[node].resetWeights()
-        print("Selected alpha =", lowest_alpha)
+        print("Selected RBF alpha =", lowest_alpha)
         now = time.time()
-        self.trainOutputLayer(input_data, lowest_eta, lowest_alpha, 50)
+        self.trainOutputLayer(input_data, lowest_eta, lowest_alpha, 100)
         done = time.time()
         self.convergence_time = done - now
 
