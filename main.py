@@ -120,6 +120,7 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
     mlp_1_missed = []
     mlp_2_missed = []
     cn_rbfn_time = []
+    ae_mlp_1_missed = []
     c_rbfn_time = []
     m_rbfn_time = []
     mlp_0_time = []
@@ -139,32 +140,38 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
 
         validation_index = int((float(len(training_set)) * 8 / 10)) - 1
         if use_regression:
-            # train algorithms
-            #kNN = nn.NearestNeighbor(training_set, k, use_regression)
-            kmeans = km.KMeans(training_set[:validation_index], int(len(training_set[:validation_index])/4), use_regression, 2)
-            pm = pam.PAM(training_set[:validation_index], int(len(training_set[:validation_index])/4), use_regression, 2)
-            c_rbfn = rbf.RBFNetwork(kmeans.centroids, kmeans.clust, clss_list, use_regression, False)
-            c_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
-            c_rbfn_time.append(c_rbfn.convergence_time)
-            m_rbfn = rbf.RBFNetwork(pm.medoids, pm.clust, clss_list, use_regression, False)
-            m_rbfn.tune(training_set[:validation_index], training_set[validation_index:])
-            m_rbfn_time.append(m_rbfn.convergence_time)
-            mlp_0 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            mlp_0.tune(training_set[:validation_index], training_set[validation_index:], 0)
-            mlp_0_time.append(mlp_0.convergence_time)
+            # train auto encoders
+            #mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+            #mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [], 10, 100)
+            ae_1 = ffn.FeedforwardNetwork(len(chunked_data[0][0])-1, clss_list, "autoencoder", True, False)
+            ae_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [len(chunked_data[0][0])-2, len(chunked_data[0][0])-6, len(chunked_data[0][0])-3], 10, 100)
+            ae_mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+            ae_1.addFFNetwork(ae_mlp_1, True, 1, training_set[:validation_index], training_set[validation_index:], 10, 100)
+            #mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [])
+            #mlp_0 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+            #mlp_0.tune(training_set[:validation_index], training_set[validation_index:], 0)
             mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1)
-            mlp_1_time.append(mlp_1.convergence_time)
-            mlp_2 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            mlp_2.tune(training_set[:validation_index], training_set[validation_index:], 2)
-            mlp_2_time.append(mlp_1.convergence_time)
+            mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [], 10, 100)
+            #mlp_2 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+            #mlp_2.tune(training_set[:validation_index], training_set[validation_index:], 2)
             # test algorithms
-
-            c_rbfn_missed.append(ms.testRegressor(c_rbfn, testing_set))
-            m_rbfn_missed.append(ms.testRegressor(m_rbfn, testing_set))
-            mlp_0_missed.append(ms.testRegressor(mlp_0, testing_set))
             mlp_1_missed.append(ms.testRegressor(mlp_1, testing_set))
-            mlp_2_missed.append(ms.testRegressor(mlp_2, testing_set))
+            ae_mlp_1_missed.append(ms.testRegressor(ae_1, testing_set))
+            print(ms.getMean(mlp_1_missed[0], len(mlp_1_missed[0])), ms.getMean(ae_mlp_1_missed[0], len(ae_mlp_1_missed[0])))
+            #c_rbfn_missed.append(ms.testRegressor(c_rbfn, testing_set))
+            #m_rbfn_missed.append(ms.testRegressor(m_rbfn, testing_set))
+            #mlp_0_missed.append(ms.testRegressor(mlp_0, testing_set))
+            #mlp_1_missed.append(ms.testRegressor(mlp_1, testing_set))
+            #mlp_2_missed.append(ms.testRegressor(mlp_2, testing_set))
+
+            #lowest_error_nn = mlp_0
+            #lowest_error = ms.getMean(mlp_0_missed, 10)
+            #if ms.getMean(mlp_1_missed) < lowest_error:
+            #    lowest_error_nn = mlp_1
+            #    lowest_error = ms.getMean(mlp_1_missed, 10)
+            #if ms.getMean(mlp_2_missed) < lowest_error:
+            #    lowest_error_nn = mlp_2
+
         else:
             # train algorithms
             kNN = nn.NearestNeighbor(training_set[:validation_index], k, use_regression)
@@ -207,45 +214,7 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
             mlp_1_missed.append(ms.testProbabilisticClassifier(mlp_1, testing_set))
             mlp_2_missed.append(ms.testProbabilisticClassifier(mlp_2, testing_set))
     if use_regression:
-        ms.compareRegressors(c_rbfn_missed, m_rbfn_missed, "k-means RBF", "PAM RBF")
-        print("k-means RBF", "PAM RBF","convergence time")
-        ms.pairedTTest(c_rbfn_time, m_rbfn_time, 0.05)
-        ms.compareRegressors(c_rbfn_missed, mlp_0_missed, "k-means RBF", "0-layer MLP")
-        print("k-means RBF", "0-layer MLP","convergence time")
-        ms.pairedTTest(c_rbfn_time, mlp_0_time, 0.05)
-        ms.compareRegressors(c_rbfn_missed, mlp_1_missed, "k-means RBF", "1-layer MLP")
-        print("k-means RBF", "1-layer MLP","convergence time")
-        ms.pairedTTest(c_rbfn_time, mlp_1_time, 0.05)
-        ms.compareRegressors(c_rbfn_missed, mlp_2_missed, "k-means RBF", "2-layer MLP")
-        print("k-means RBF", "2-layer MLP", "convergence time")
-        ms.pairedTTest(c_rbfn_time, mlp_2_time, 0.05)
-
-        ms.compareRegressors(m_rbfn_missed, mlp_0_missed, "PAM RBF", "0-layer MLP")
-        print("PAM RBF", "0-layer MLP", "convergence time")
-        ms.pairedTTest(m_rbfn_time, mlp_0_time, 0.05)
-        ms.compareRegressors(m_rbfn_missed, mlp_1_missed, "PAM RBFF", "1-layer MLP")
-        print("PAM RBFF", "1-layer MLP", "convergence time")
-        ms.pairedTTest(m_rbfn_time, mlp_1_time, 0.05)
-        ms.compareRegressors(m_rbfn_missed, mlp_2_missed, "PAM RBF", "2-layer MLP")
-        print("PAM RBF", "2-layer MLP", "convergence time")
-        ms.pairedTTest(m_rbfn_time, mlp_2_time, 0.05)
-
-        ms.compareRegressors(mlp_0_missed, mlp_1_missed, "0-layer MLP", "1-layer MLP")
-        print("0-layer MLP", "1-layer MLP", "convergence time")
-        ms.pairedTTest(mlp_0_time, mlp_1_time, 0.05)
-        ms.compareRegressors(mlp_0_missed, mlp_2_missed, "0-layer MLP", "2-layer MLP")
-        print("0-layer MLP", "2-layer MLP", "convergence time")
-        ms.pairedTTest(mlp_0_time, mlp_2_time, 0.05)
-
-        ms.compareRegressors(mlp_1_missed, mlp_2_missed, "1-layer MLP", "2-layer MLP")
-        print("1-layer MLP", "2-layer MLP", "convergence time")
-        ms.pairedTTest(mlp_1_time, mlp_2_time, 0.05)
-
-        print("average k-means RBF time:",ms.getMean(c_rbfn_time, len(c_rbfn_time)))
-        print("average PAM RBF time:", ms.getMean(m_rbfn_time, len(m_rbfn_time)))
-        print("average 0-layer MLP time:", ms.getMean(mlp_0_time, len(mlp_0_time)))
-        print("average 1-layer MLP time:", ms.getMean(mlp_1_time, len(mlp_1_time)))
-        print("average 2-layer MLP time:", ms.getMean(mlp_2_time, len(mlp_2_time)))
+        ms.compareRegressors(ae_mlp_1_missed, mlp_1_missed, "ae1", "mlp1")
     else:
         ms.compareProbabilisticClassifiers(cn_rbfn_missed, c_rbfn_missed, "CNN RBF", "k-means RBF")
         print("CNN RBF", "k-means RBF", "convergence time")

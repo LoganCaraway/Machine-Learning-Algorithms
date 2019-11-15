@@ -102,6 +102,25 @@ def testRegressor(algorithm, testing_set):
         run_result.append(abs(y-y_hat))
     return run_result
 
+# MSE of feature MSEs for each item in the testing set
+def testAutoencoder(algorithm, testing_set):
+    #run_result = []
+    run_result = 0
+    for observation_i in range(len(testing_set)):
+        obs_MSE = 0
+        prediction = algorithm.predict(testing_set[observation_i][:-1])
+        for feature in range(len(prediction)):
+            feature_MSE = testing_set[observation_i][feature] - prediction[feature]
+            feature_MSE *= feature_MSE
+            obs_MSE += feature_MSE
+        #run_result.append(obs_MSE/len(testing_set[0]))
+        obs_MSE /= len(testing_set[0])
+        run_result += (obs_MSE * obs_MSE)
+    run_result /= len(testing_set)
+        #y = testing_set[observation_i][-1]
+        #y_hat = algorithm.predict(testing_set[observation_i][:-1])
+        #run_result.append(abs(y - y_hat))
+    return run_result
 
 # the arrays handed in represent the absolute error in each trial of each run [run][trial]
 def compareRegressors(base_missed, other_missed, base_name, other_name):
