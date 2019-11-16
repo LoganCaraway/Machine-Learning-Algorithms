@@ -61,6 +61,9 @@ def normalize(data):
                 del data[example][feature_num]
     return data
 
+# return Symmetric Mean Absolute Percentage Error (SMAPE)
+def getDecimalSMAPE(a, p):
+    return abs(a - p)/( (abs(a)+abs(p))/2 )
 
 #--------------------Loss Functions and Paired t Test--------------------#
 # When there is an algorithm that can return probabilities, use this tester. else use testClassifier
@@ -102,25 +105,19 @@ def testRegressor(algorithm, testing_set):
         run_result.append(abs(y-y_hat))
     return run_result
 
-# MSE of feature MSEs for each item in the testing set
+# average SMAPE for the testing set
 def testAutoencoder(algorithm, testing_set):
-    #run_result = []
-    run_result = 0
+    run_SMAPE = 0
     for observation_i in range(len(testing_set)):
-        obs_MSE = 0
+        obs_SMAPE = 0
         prediction = algorithm.predict(testing_set[observation_i][:-1])
         for feature in range(len(prediction)):
-            feature_MSE = testing_set[observation_i][feature] - prediction[feature]
-            feature_MSE *= feature_MSE
-            obs_MSE += feature_MSE
-        #run_result.append(obs_MSE/len(testing_set[0]))
-        obs_MSE /= len(testing_set[0])
-        run_result += (obs_MSE * obs_MSE)
-    run_result /= len(testing_set)
-        #y = testing_set[observation_i][-1]
-        #y_hat = algorithm.predict(testing_set[observation_i][:-1])
-        #run_result.append(abs(y - y_hat))
-    return run_result
+            obs_SMAPE += getDecimalSMAPE(testing_set[observation_i][feature], prediction[feature])
+        #take the average and convert decimal to %
+        obs_SMAPE *= (100 / len(prediction))
+        run_SMAPE += obs_SMAPE
+    run_SMAPE /= len(testing_set)
+    return run_SMAPE
 
 # the arrays handed in represent the absolute error in each trial of each run [run][trial]
 def compareRegressors(base_missed, other_missed, base_name, other_name):

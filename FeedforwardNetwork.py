@@ -43,9 +43,9 @@ class FeedforwardNetwork:
             if layer_num == 0:
                 inputs = len(input_data[0])-1
             else:
-                inputs = len(self.hidden_layers[layer_num-1])+1
+                inputs = len(self.hidden_layers[layer_num-1])
             # create outputs for this layer
-            for output_node in range(inputs-1):
+            for output_node in range(inputs):
                 self.output_layer.append(unit.Neuron(len(self.hidden_layers[layer_num]), self.logistic_output))
             # tune layer
             random.shuffle(input_data)
@@ -67,6 +67,8 @@ class FeedforwardNetwork:
                             hidden_outputs.append(self.getHiddenLayerOutput(hidden_outputs[-1], layer))
                     # get outputs
                     outputs = []
+                    #if hidden_outputs == []:
+                    #    hidden_outputs.append(input_data[example_num][:-1])
                     for output_node in range(len(self.output_layer)):
                         outputs.append(self.output_layer[output_node].getOutput(hidden_outputs[-1]))
                     # -------------#
@@ -86,7 +88,7 @@ class FeedforwardNetwork:
                             # error = feature val - predicted feature val
                             error = input_data[example_num][output_node] - outputs[output_node]
                         prev_error.append(error)
-                        loss[output_node] += error * error
+                        loss[output_node] = ms.getDecimalSMAPE(input_data[example_num][output_node], outputs[output_node])
                         # shallow copy the weights (alias)
                         weights = self.output_layer[output_node].weights
                         prev_weights.append(copy.deepcopy(weights))
@@ -133,14 +135,12 @@ class FeedforwardNetwork:
                     if alpha_momentum > 0:
                         prev_delta_weights = delta_weights[-1]
                 print(self.name,":",epoch+1,"of",iterations, end=' ')
-                #print("MSE per node:", end=' ')
-                # print average MSE for output nodes
                 average = 0.0
                 for output_num in range(len(self.output_layer)):
-                    #print(loss[output_num] / len(input_data), end=' ')
-                    average += loss[output_num] / len(input_data)
-                average /= len(self.output_layer)
-                print("Average MSE:", average)
+                    average += loss[output_num]
+                # take average and convert decimal to %
+                average *= (100 / len(self.output_layer))
+                print("Average Symmetric Mean Absolute Percentage Error:", average)
 
                 if epoch > 10:
                     better = True
@@ -175,7 +175,7 @@ class FeedforwardNetwork:
             self.hidden_layers.append([])
             for node in range(hidden_layer_nodes[layer]):
                 self.hidden_layers[layer].append(unit.Neuron(inputs, self.logistic_nodes))
-        if self.output_type == "autoencoder":
+        if (self.output_type == "autoencoder") and (len(hidden_layer_nodes) > 1):
             self.tuneLayerwise(input_data, eta, alpha_momentum, iterations)
             print("Fine tuning weights using Backpropogation")
         #-create output nodes-#
@@ -189,10 +189,6 @@ class FeedforwardNetwork:
             self.output_layer.append(unit.Neuron(inputs, self.logistic_output))
             if not ((self.output_type == "regression") or (self.output_type == "autoencoder")):
                 self.output_layer[output_node].setClass(self.class_list[output_node])
-
-
-
-
         #-----------------#
         # Backpropogation #
         #-----------------#
@@ -226,9 +222,8 @@ class FeedforwardNetwork:
                 # get outputs by layer
                 # outputs [layer][node]
                 outputs = []
-                outputs.append([])
                 for output_node in range(self.out_k):
-                    outputs[0].append(self.output_layer[output_node].getOutput(hidden_outputs[-1]))
+                    outputs.append(self.output_layer[output_node].getOutput(hidden_outputs[-1]))
                 # -------------#
 
                 #-get output node errors and update output weights-#
@@ -244,19 +239,21 @@ class FeedforwardNetwork:
                     delta_weights[example_num][0].append([])
                     error = 0
                     if self.output_type == "regression":
-                        error = input_data[example_num][-1] - outputs[0][output_node]
+                        error = input_data[example_num][-1] - outputs[output_node]
+                        loss[output_node] = error * error
                     elif self.output_type == "classification":
                         if input_data[example_num][-1] == self.output_layer[output_node].clss:
                             correct = 1
                         else:
                             correct = 0
-                        error = correct - outputs[0][output_node]
-                        error *= outputs[0][output_node] * (1-outputs[0][output_node])
+                        error = correct - outputs[output_node]
+                        error *= outputs[output_node] * (1-outputs[output_node])
+                        loss[output_node] = error * error
                     elif self.output_type == "autoencoder":
                         # error = feature val - predicted feature val
-                        error = input_data[example_num][output_node] - outputs[0][output_node]
+                        error = input_data[example_num][output_node] - outputs[output_node]
+                        loss[output_node] = ms.getDecimalSMAPE(input_data[example_num][output_node], outputs[output_node])
                     prev_error.append(error)
-                    loss[output_node] += error * error
                     # shallow copy the weights (alias)
                     weights = self.output_layer[output_node].weights
                     prev_weights.append(copy.deepcopy(weights))
@@ -306,16 +303,21 @@ class FeedforwardNetwork:
                     prev_weights = current_weights
                 if alpha_momentum > 0:
                     prev_delta_weights = delta_weights[-1]
-            if (self.output_type == "regression"):
+            if self.output_type == "regression":
                 print(self.name,":",epoch+1,"of",iterations, end=' ')
                 print("MSE:", (loss[0] / len(input_data)))
-            else:
-                print(self.name,":",epoch+1,"of",iterations, end=' ')
-                #print("Average MSE:", end=' ')
-                # print average MSE for output nodes
+            elif self.output_type == "autoencoder":
+                print(self.name, ":", epoch + 1, "of", iterations, end=' ')
                 average = 0.0
                 for output_num in range(len(self.output_layer)):
-                    #print(loss[output_num] / len(input_data), end=' ')
+                    average += loss[output_num]
+                # take average and convert decimal to %
+                average *= (100 / len(self.output_layer))
+                print("Average Symmetric Mean Absolute Percentage Error:", average)
+            else:
+                print(self.name,":",epoch+1,"of",iterations, end=' ')
+                average = 0.0
+                for output_num in range(len(self.output_layer)):
                     average += loss[output_num] / len(input_data)
                 average /= len(self.output_layer)
                 print("Average MSE:", average)
@@ -447,7 +449,7 @@ class FeedforwardNetwork:
             elif self.output_type == "autoencoder":
                 # get error for test
                 error = ms.testAutoencoder(self, validation_data)
-            print("MSE for eta =", eta, ":", error, "lowest MSE =", lowest_error)
+            print("Error for eta =", eta, ":", error, "lowest error =", lowest_error)
             if (error < lowest_error) or (eta == 0.05):
                 lowest_eta = eta
                 lowest_error = error
@@ -459,7 +461,7 @@ class FeedforwardNetwork:
         print("Tuning",self.name,"alpha for momentum")
         lowest_alpha = 0
         lowest_error = -1
-        while alpha < 0.5:
+        while alpha < 0.3:
             self.train(input_data, hidden_layer_nodes, lowest_eta, alpha, tuning_iterations)
             error = 0
             if self.output_type == "regression":
@@ -473,7 +475,7 @@ class FeedforwardNetwork:
             elif self.output_type == "autoencoder":
                 # get error for test
                 error = ms.testAutoencoder(self, validation_data)
-            print("MSE for alpha =", alpha, ":", error, "lowest MSE =", lowest_error)
+            print("Error for alpha =", alpha, ":", error, "lowest error =", lowest_error)
             if (error < lowest_error) or (alpha == 0):
                 lowest_alpha = alpha
                 lowest_error = error

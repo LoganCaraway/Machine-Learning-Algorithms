@@ -144,7 +144,7 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
             #mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
             #mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [], 10, 100)
             ae_1 = ffn.FeedforwardNetwork(len(chunked_data[0][0])-1, clss_list, "autoencoder", True, False)
-            ae_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [len(chunked_data[0][0])-2, len(chunked_data[0][0])-6, len(chunked_data[0][0])-3], 10, 100)
+            ae_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [len(chunked_data[0][0]), len(chunked_data[0][0])], 20, 200)
             ae_mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
             ae_1.addFFNetwork(ae_mlp_1, True, 1, training_set[:validation_index], training_set[validation_index:], 10, 100)
             #mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [])
