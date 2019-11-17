@@ -17,6 +17,7 @@ class FeedforwardNetwork:
         self.logistic_nodes = logistic_nodes
         self.logistic_output = logistic_output
         self.ffn = None
+        self.regularize = False
         if output_type == "autoencoder":
             self.name = "autoencoder"
         else:
@@ -80,18 +81,31 @@ class FeedforwardNetwork:
                     # append a list for output layer
                     delta_weights[example_num].append([])
                     for output_node in range(len(self.output_layer)):
-                        # append a list to hold the weights for this node
-                        delta_weights[example_num][0].append([])
-                        if layer_num != 0:
-                            error = hidden_outputs[-2][output_node+1] - outputs[output_node]
-                        else:
-                            # error = feature val - predicted feature val
-                            error = input_data[example_num][output_node] - outputs[output_node]
-                        prev_error.append(error)
-                        loss[output_node] = ms.getDecimalSMAPE(input_data[example_num][output_node], outputs[output_node])
                         # shallow copy the weights (alias)
                         weights = self.output_layer[output_node].weights
                         prev_weights.append(copy.deepcopy(weights))
+                        # append a list to hold the weights for this node
+                        delta_weights[example_num][0].append([])
+                        if not self.regularize:
+                            if layer_num != 0:
+                                error = hidden_outputs[-2][output_node + 1] - outputs[output_node]
+                            else:
+                                # error = feature val - predicted feature val
+                                error = input_data[example_num][output_node] - outputs[output_node]
+                        else:
+                            sum_of_weights = 0
+                            for weight_num in range(len(weights)):
+                                sum_of_weights += abs(weights[weight_num])
+                            if layer_num != 0:
+                                error = hidden_outputs[-2][output_node + 1] - outputs[output_node] + (self.lmbda * sum_of_weights)
+                            else:
+                                # error = feature val - predicted feature val + lambda*(sum of weights)
+                                error = input_data[example_num][output_node] - outputs[output_node] + (self.lmbda * sum_of_weights)
+                        prev_error.append(error)
+                        if layer_num == 0:
+                            loss[output_node] += ms.getDecimalSMAPE(input_data[example_num][output_node], outputs[output_node])
+                        else:
+                            loss[output_node] += ms.getDecimalSMAPE(hidden_outputs[-2][output_node + 1], outputs[output_node])
                         for weight_num in range(len(weights)):
                             delta_weights[example_num][0][output_node].append(eta * error * hidden_outputs[-1][weight_num])
                             if (alpha_momentum > 0) and (example_num > 0):
@@ -99,9 +113,6 @@ class FeedforwardNetwork:
                             else:
                                 weights[weight_num] = weights[weight_num] + delta_weights[example_num][0][output_node][weight_num]
                     # propogate errors and update weights
-                    #prev_layer_error = []
-                    #for layer in range(len(self.hidden_layers)):
-                    #    delta_weights[example_num].append([])
                     #current_error = []
                     #current_weights = []
                     # append a list for hidden layer
@@ -139,22 +150,28 @@ class FeedforwardNetwork:
                 for output_num in range(len(self.output_layer)):
                     average += loss[output_num]
                 # take average and convert decimal to %
+                average /= len(input_data)
                 average *= (100 / len(self.output_layer))
+                if self.regularize:
+                    print("Regularized ", end='')
                 print("Average Symmetric Mean Absolute Percentage Error:", average)
 
                 if epoch > 10:
-                    better = True
+                    prev_average = 0.0
                     for output_num in range(len(self.output_layer)):
-                        if loss[output_num] < prev_loss[output_num]:
-                            better = False
-                            break
-                    if better:
+                        prev_average += prev_loss[output_num]
+                    # take average and convert decimal to %
+                    prev_average /= len(input_data)
+                    prev_average *= (100 / len(self.output_layer))
+                    if average > prev_average:
                         worse_epochs += 1
-                        if worse_epochs > 2:
+                        if (worse_epochs > 4) or (average > (9*prev_average)):
                             print("Converged")
                             break
                     else:
-                        worse_epochs = 0
+                        worse_epochs -= 2
+                        if worse_epochs < 0:
+                            worse_epochs = 0
                 prev_loss = loss
             # clear outputlayer
             self.output_layer = []
@@ -235,12 +252,15 @@ class FeedforwardNetwork:
                 # append a list for output layer
                 delta_weights[example_num].append([])
                 for output_node in range(self.out_k):
+                    # shallow copy the weights (alias)
+                    weights = self.output_layer[output_node].weights
+                    prev_weights.append(copy.deepcopy(weights))
                     # append a list to hold the weights for this node
                     delta_weights[example_num][0].append([])
                     error = 0
                     if self.output_type == "regression":
                         error = input_data[example_num][-1] - outputs[output_node]
-                        loss[output_node] = error * error
+                        loss[output_node] += error * error
                     elif self.output_type == "classification":
                         if input_data[example_num][-1] == self.output_layer[output_node].clss:
                             correct = 1
@@ -248,15 +268,19 @@ class FeedforwardNetwork:
                             correct = 0
                         error = correct - outputs[output_node]
                         error *= outputs[output_node] * (1-outputs[output_node])
-                        loss[output_node] = error * error
+                        loss[output_node] += error * error
                     elif self.output_type == "autoencoder":
-                        # error = feature val - predicted feature val
-                        error = input_data[example_num][output_node] - outputs[output_node]
-                        loss[output_node] = ms.getDecimalSMAPE(input_data[example_num][output_node], outputs[output_node])
+                        if not self.regularize:
+                            # error = feature val - predicted feature val
+                            error = input_data[example_num][output_node] - outputs[output_node]
+                        else:
+                            sum_of_weights = 0
+                            for weight_num in range(len(weights)):
+                                sum_of_weights += abs(weights[weight_num])
+                            # error = feature val - predicted feature val + lambda*(sum of weights)
+                            error = input_data[example_num][output_node] - outputs[output_node] + (self.lmbda * sum_of_weights)
+                        loss[output_node] += ms.getDecimalSMAPE(input_data[example_num][output_node], outputs[output_node])
                     prev_error.append(error)
-                    # shallow copy the weights (alias)
-                    weights = self.output_layer[output_node].weights
-                    prev_weights.append(copy.deepcopy(weights))
                     for weight_num in range(len(weights)):
                         delta_weights[example_num][0][output_node].append(eta * error * hidden_outputs[-1][weight_num])
                         if (alpha_momentum > 0) and (example_num > 0):
@@ -312,7 +336,10 @@ class FeedforwardNetwork:
                 for output_num in range(len(self.output_layer)):
                     average += loss[output_num]
                 # take average and convert decimal to %
+                average /= len(input_data)
                 average *= (100 / len(self.output_layer))
+                if self.regularize:
+                    print("Regularized ", end='')
                 print("Average Symmetric Mean Absolute Percentage Error:", average)
             else:
                 print(self.name,":",epoch+1,"of",iterations, end=' ')
@@ -323,29 +350,63 @@ class FeedforwardNetwork:
                 print("Average MSE:", average)
 
             if epoch > 10:
-                better = True
+                prev_error = 0.0
+                current_error = 0.0
                 for output_num in range(len(self.output_layer)):
-                    if loss[output_num] < prev_loss[output_num]:
-                        better = False
-                        break
-                if better:
+                    current_error += loss[output_num]
+                    prev_error += prev_loss[output_num]
+                if current_error > prev_error:
                     worse_epochs += 1
-                    if worse_epochs > 2:
+                    if (worse_epochs > 4) or (current_error > (9*prev_error)):
                         print("Converged")
                         break
                 else:
-                    worse_epochs = 0
+                    worse_epochs -= 2
+                    if worse_epochs < 0:
+                        worse_epochs = 0
             prev_loss = loss
 
     def tune(self, input_data, validation_data, num_layers, hidden_layer_nodes, tuning_iterations, iterations):
         eta = 0.05
         alpha = 0
+        self.lmbda = 0.01
+        if self.regularize:
+            if hidden_layer_nodes == []:
+                for layer in range(abs(num_layers)):
+                    # while tuning lambda, set layers to be overcomplete
+                    hidden_layer_nodes.append((len(input_data[0])-1))
+            while self.lmbda <= 0.1:
+                print("Testing lambda: ",self.lmbda)
+                self.train(input_data, hidden_layer_nodes, eta, alpha, int(iterations/4))
+                error = ms.testAutoencoder(self, validation_data)
+                print("SMAPE for lambda =", self.lmbda, ":", error)
+                if (error > self.allowedError):
+                    self.lmbda -= 0.01
+                    if self.lmbda < 0.01:
+                        self.lmbda = 0.01
+                    self.hidden_layers = []
+                    self.output_layer = []
+                    break
+                self.lmbda += 0.01
+                if self.lmbda > 0.1:
+                    self.lmbda = 0.1
+                self.hidden_layers = []
+                self.output_layer = []
+            print("Selected", self.name, "lambda =", self.lmbda)
+            hidden_layer_nodes = []
         if (hidden_layer_nodes == []) and (num_layers != -1):
-        #hidden_layer_nodes = []
             print("Tuning",self.name,"nodes per layer for",num_layers,"layers")
             for layer in range(num_layers):
                 less_nodes = 1
-                more_nodes = 100
+                if self.output_type == "autoencoder":
+                    if self.regularize:
+                        # if regularized, set max nodes to 3x the number of features
+                        more_nodes = int(3*(len(input_data[0])-1))
+                    else:
+                        # if not regularize, ensure there are less nodes than features
+                        more_nodes = len(input_data[0]) - 2
+                else:
+                    more_nodes = 100
                 nodes = random.randint(less_nodes+1, more_nodes-1)
                 max_loops = 4
                 for round in range(max_loops):
@@ -363,6 +424,8 @@ class FeedforwardNetwork:
                         mid_error /= len(results)
                     elif self.output_type == "classification":
                         mid_error = self.testClassification(validation_data)
+                    else:
+                        mid_error = ms.testAutoencoder(self, validation_data)
                     self.hidden_layers = []
                     self.output_layer = []
                     hidden_layer_nodes.append(more_nodes)
@@ -376,6 +439,8 @@ class FeedforwardNetwork:
                         more_error /= len(results)
                     elif self.output_type == "classification":
                         more_error = self.testClassification(validation_data)
+                    else:
+                        more_error = ms.testAutoencoder(self, validation_data)
                     self.hidden_layers = []
                     self.output_layer = []
                     hidden_layer_nodes.append(less_nodes)
@@ -389,6 +454,8 @@ class FeedforwardNetwork:
                         less_error /= len(results)
                     elif self.output_type == "classification":
                         less_error = self.testClassification(validation_data)
+                    else:
+                        less_error = ms.testAutoencoder(self, validation_data)
                     self.hidden_layers = []
                     self.output_layer = []
                     if (mid_error <= less_error) and (mid_error <= more_error) and round > 0:
@@ -449,7 +516,11 @@ class FeedforwardNetwork:
             elif self.output_type == "autoencoder":
                 # get error for test
                 error = ms.testAutoencoder(self, validation_data)
-            print("Error for eta =", eta, ":", error, "lowest error =", lowest_error)
+            print("Error for eta =", eta, ":", error, end=' ')
+            if lowest_error == -1:
+                print()
+            else:
+                print(" lowest error =", lowest_error)
             if (error < lowest_error) or (eta == 0.05):
                 lowest_eta = eta
                 lowest_error = error
@@ -475,7 +546,11 @@ class FeedforwardNetwork:
             elif self.output_type == "autoencoder":
                 # get error for test
                 error = ms.testAutoencoder(self, validation_data)
-            print("Error for alpha =", alpha, ":", error, "lowest error =", lowest_error)
+            print("Error for alpha =", alpha, ":", error, end=' ')
+            if lowest_error == -1:
+                print()
+            else:
+                print(" lowest error =", lowest_error)
             if (error < lowest_error) or (alpha == 0):
                 lowest_alpha = alpha
                 lowest_error = error
@@ -489,7 +564,9 @@ class FeedforwardNetwork:
         done = time.time()
         self.convergence_time = done - now
 
-
+    def regularizeAutoencoder(self, max_error):
+        self.regularize = True
+        self.allowedError = max_error
 
     def predict(self, new_obs):
         if self.output_type == "regression":

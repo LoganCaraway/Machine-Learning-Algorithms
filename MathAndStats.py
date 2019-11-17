@@ -21,6 +21,12 @@ def getMean(arr, num_features):
         avg += float(arr[i])
     return avg/num_features
 
+def getMeanValofTuple(arr, index):
+    avg = 0.0
+    for i in range(len(arr)):
+        avg += float(arr[i][index])
+    return avg/len(arr)
+
 # returns the variance
 def getVariance(mean, examples, num_features):
     if len(examples) < 2:
@@ -63,10 +69,10 @@ def normalize(data):
 
 # return Symmetric Mean Absolute Percentage Error (SMAPE)
 def getDecimalSMAPE(a, p):
-    return abs(a - p)/( (abs(a)+abs(p))/2 )
+    return abs(a - p)/(abs(a)+abs(p))
 
 #--------------------Loss Functions and Paired t Test--------------------#
-# When there is an algorithm that can return probabilities, use this tester. else use testClassifier
+# When there is a classifier that can return probabilities, use this tester. else use testClassifier
 def testProbabilisticClassifier(algorithm, testing_set):
     run_result = []
     for observation_i in range(len(testing_set)):
