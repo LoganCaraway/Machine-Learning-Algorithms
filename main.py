@@ -51,7 +51,7 @@ def openFiles(dataFile):
             else:
                 data[obs][-1] = 8
 
-    if (len(sys.argv) > 3) and (sys.argv[3] == "log"):
+    if (len(sys.argv) > 4) and (sys.argv[4] == "log"):
         logOutputs(data)
     # divide data into 10 chunks for use in 10-fold cross validation paired t test
     chnks = getNChunks(data, 10)
@@ -108,15 +108,18 @@ def getClasses(data):
             classes.append(data[x][-1])
     return classes
 
-def trainAndTest(chunked_data, clss_list, k, use_regression):
+def trainAndTest(chunked_data, clss_list, k, use_regression, num_layers, hidden_layer_nodes, eta, alpha_momentum, iterations, tune):
     best_mlp_missed = []
+    mlp_0_missed = []
+    mlp_1_missed = []
+    mlp_2_missed = []
     ae_1_mlp_missed = []
     ae_2_mlp_missed = []
     ae_3_mlp_missed = []
+    ae_1_smape = []
+    ae_2_smape = []
+    ae_3_smape = []
     for testing in range(10):
-        mlp_0_missed = []
-        mlp_1_missed = []
-        mlp_2_missed = []
         print("Fold: ",testing)
         training_set = []
 
@@ -129,174 +132,191 @@ def trainAndTest(chunked_data, clss_list, k, use_regression):
 
         validation_index = int((float(len(training_set)) * 8 / 10)) - 1
         if use_regression:
-            # train multi layer perceptrons
-            mlp_0 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            mlp_0.tune(training_set[:validation_index], training_set[validation_index:], 0, [], 10, 100)
-            mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [], 10, 100)
-            mlp_2 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            mlp_2.tune(training_set[:validation_index], training_set[validation_index:], 2, [], 10, 100)
-            # test multi layer perceptrons
-            mlp_0_missed = ms.testRegressor(mlp_0, testing_set)
-            mlp_1_missed = ms.testRegressor(mlp_1, testing_set)
-            mlp_2_missed = ms.testRegressor(mlp_2, testing_set)
+            if tune:
+                # train multi layer perceptrons
+                mlp_0 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+                mlp_0.backpropogation(training_set, [], eta, alpha_momentum, iterations)
+                mlp_1 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+                mlp_1.backpropogation(training_set, hidden_layer_nodes[:1], eta, alpha_momentum, iterations)
+                mlp_2 = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+                mlp_2.backpropogation(training_set, hidden_layer_nodes[:2], eta, alpha_momentum, iterations)
+                #mlp_2.tune(training_set[:validation_index], training_set[validation_index:], 2, [], 10, 100)
+                # test multi layer perceptrons
+                mlp_0_missed.append(ms.testRegressor(mlp_0, testing_set))
+                mlp_1_missed.append(ms.testRegressor(mlp_1, testing_set))
+                mlp_2_missed.append(ms.testRegressor(mlp_2, testing_set))
 
-            lowest_error_mlp = mlp_0
-            lowest_error = mlp_0_missed
-            print("Average absolute error for 0-layer MLP: ", ms.getMean(mlp_0_missed,len(mlp_0_missed)))
-            print("Average absolute error for 1-layer MLP: ", ms.getMean(mlp_1_missed, len(mlp_1_missed)))
-            print("Average absolute error for 2-layer MLP: ", ms.getMean(mlp_2_missed, len(mlp_2_missed)))
-            if ms.getMean(mlp_1_missed,len(mlp_1_missed)) < ms.getMean(mlp_0_missed,len(mlp_0_missed)):
-                lowest_error_mlp = mlp_1
-                lowest_error = mlp_1_missed
-            if ms.getMean(mlp_2_missed,len(mlp_2_missed)) < ms.getMean(lowest_error,len(lowest_error)):
-                lowest_error_mlp = mlp_2
-                lowest_error = mlp_2_missed
-            best_mlp_missed.append(lowest_error)
-            print("Selected MLP with",len(lowest_error_mlp.hidden_layers), "layers")
+            #lowest_error_mlp = mlp_0
+            #lowest_error = mlp_0_missed
+            #print("Average absolute error for 0-layer MLP: ", ms.getMean(mlp_0_missed,len(mlp_0_missed)))
+            #print("Average absolute error for 1-layer MLP: ", ms.getMean(mlp_1_missed, len(mlp_1_missed)))
+            #print("Average absolute error for 2-layer MLP: ", ms.getMean(mlp_2_missed, len(mlp_2_missed)))
+            #if ms.getMean(mlp_1_missed,len(mlp_1_missed)) < ms.getMean(mlp_0_missed,len(mlp_0_missed)):
+            #    lowest_error_mlp = mlp_1
+            #    lowest_error = mlp_1_missed
+            #if ms.getMean(mlp_2_missed,len(mlp_2_missed)) < ms.getMean(lowest_error,len(lowest_error)):
+            #    lowest_error_mlp = mlp_2
+            #    lowest_error = mlp_2_missed
+            #best_mlp_missed.append(lowest_error)
+            #print("Selected MLP with",len(lowest_error_mlp.hidden_layers), "layers")
+            else:
+                mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+                mlp.backpropogation(training_set, hidden_layer_nodes[:num_layers], eta, alpha_momentum, iterations)
+                best_mlp_missed.append(ms.testRegressor(mlp, testing_set))
             # train autoencoders
             ae_1 = ffn.FeedforwardNetwork(len(chunked_data[0][0])-1, clss_list, "autoencoder", True, False)
-            ae_1.regularizeAutoencoder(20)
-            ae_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [], 10, 150)
+            ae_1.regularizeAutoencoder(0.02)
+            #ae_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [20, 20], 10, 150)
+            ae_1.backpropogation(training_set, hidden_layer_nodes[:1], eta, alpha_momentum, iterations)
             # Autoencoder 1 stacked MLP
-            ae_1_mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            ae_1.addFFNetwork(ae_1_mlp, True, len(lowest_error_mlp.hidden_layers), training_set[:validation_index], training_set[validation_index:], 10, 100)
+            if not tune:
+                ae_1_mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+                ae_1.addFFNetwork(ae_1_mlp, True, num_layers, training_set[:validation_index], training_set[validation_index:], 10, 100)
 
-            ae_2 = ffn.FeedforwardNetwork(len(chunked_data[0][0]) - 1, clss_list, "autoencoder", True, False)
-            ae_2.regularizeAutoencoder(20)
-            ae_2.tune(training_set[:validation_index], training_set[validation_index:], 2, [], 10, 150)
+            ae_2 = ffn.FeedforwardNetwork(len(chunked_data[0][0])-1, clss_list, "autoencoder", True, False)
+            ae_2.regularizeAutoencoder(0.02)
+            #ae_2.tune(training_set[:validation_index], training_set[validation_index:], 2, [], 10, 150)
+            ae_2.backpropogation(training_set, hidden_layer_nodes[:2], eta, alpha_momentum, iterations)
             # Autoencoder 2 stacked MLP
-            ae_2_mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            ae_2.addFFNetwork(ae_2_mlp, True, len(lowest_error_mlp.hidden_layers), training_set[:validation_index],training_set[validation_index:], 10, 100)
+            if not tune:
+                ae_2_mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+                ae_2.addFFNetwork(ae_2_mlp, True, num_layers, training_set[:validation_index],training_set[validation_index:], 10, 100)
 
-            ae_3 = ffn.FeedforwardNetwork(len(chunked_data[0][0]) - 1, clss_list, "autoencoder", True, False)
-            ae_3.regularizeAutoencoder(20)
-            ae_3.tune(training_set[:validation_index], training_set[validation_index:], 3, [], 10, 150)
+            ae_3 = ffn.FeedforwardNetwork(len(chunked_data[0][0])-1, clss_list, "autoencoder", True, False)
+            ae_3.regularizeAutoencoder(0.02)
+            #ae_3.tune(training_set[:validation_index], training_set[validation_index:], 3, [], 10, 150)
+            ae_3.backpropogation(training_set, hidden_layer_nodes, eta, alpha_momentum, iterations)
             # Autoencoder 3 stacked MLP
-            ae_3_mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
-            ae_3.addFFNetwork(ae_3_mlp, True, len(lowest_error_mlp.hidden_layers), training_set[:validation_index],training_set[validation_index:], 10, 100)
+            if not tune:
+                ae_3_mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
+                ae_3.addFFNetwork(ae_3_mlp, True, num_layers, training_set[:validation_index],training_set[validation_index:], 10, 100)
 
             # test autoencoders
-            ae_1_mlp_missed.append(ms.testRegressor(ae_1, testing_set))
-            ae_2_mlp_missed.append(ms.testRegressor(ae_2, testing_set))
-            ae_3_mlp_missed.append(ms.testRegressor(ae_3, testing_set))
+            if tune:
+                ae_1_smape.append(ms.testAutoencoder(ae_1, testing_set))
+                ae_2_smape.append(ms.testAutoencoder(ae_2, testing_set))
+                ae_3_smape.append(ms.testAutoencoder(ae_3, testing_set))
+            else:
+                ae_1_mlp_missed.append(ms.testRegressor(ae_1, testing_set))
+                ae_2_mlp_missed.append(ms.testRegressor(ae_2, testing_set))
+                ae_3_mlp_missed.append(ms.testRegressor(ae_3, testing_set))
             #print(ms.getMean(best_mlp_missed[0], len(best_mlp_missed[0])), ms.getMean(ae_3_mlp_missed[0], len(ae_3_mlp_missed[0])))
 
         else:
-            # train multi layer perceptrons
-            mlp_0 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
-            mlp_0.tune(training_set[:validation_index], training_set[validation_index:], 0, [], 10, 100)
-            mlp_1 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
-            mlp_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [], 10, 100)
-            #mlp_2 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
-            #mlp_2.tune(training_set[:validation_index], training_set[validation_index:], 2, [], 10, 100)
-            # test multi layer perceptrons
-            mlp_0_missed = ms.testProbabilisticClassifier(mlp_0, testing_set)
-            #mlp_1_missed = ms.testProbabilisticClassifier(mlp_1, testing_set)
-            #mlp_2_missed = ms.testProbabilisticClassifier(mlp_2, testing_set)
-
-            lowest_error_mlp = mlp_0
-            lowest_error = mlp_0_missed
-            print("0-1 loss for 0-layer MLP: ", ms.getMeanValofTuple(mlp_0_missed,0))
-            print("0-1 loss for 1-layer MLP: ", ms.getMeanValofTuple(mlp_1_missed,0))
-            print("0-1 loss for 2-layer MLP: ", ms.getMeanValofTuple(mlp_2_missed,0))
-            if ms.getMeanValofTuple(mlp_1_missed,0) < ms.getMeanValofTuple(mlp_0_missed,0):
-                lowest_error_mlp = mlp_1
-                lowest_error = mlp_1_missed
-            if ms.getMeanValofTuple(mlp_2_missed,0) < ms.getMeanValofTuple(lowest_error,0):
-                lowest_error_mlp = mlp_2
-                lowest_error = mlp_2_missed
-            best_mlp_missed.append(lowest_error)
-            print("Selected MLP with", len(lowest_error_mlp.hidden_layers), "layers")
+            if tune:
+                # train multi layer perceptrons
+                mlp_0 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
+                mlp_0.backpropogation(training_set, [], eta, alpha_momentum, iterations)
+                mlp_1 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
+                mlp_1.backpropogation(training_set, hidden_layer_nodes[:1], eta, alpha_momentum, iterations)
+                mlp_2 = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
+                mlp_2.backpropogation(training_set, hidden_layer_nodes[:2], eta, alpha_momentum, iterations)
+                # test multi layer perceptrons
+                mlp_0_missed.append(ms.testProbabilisticClassifier(mlp_0, testing_set))
+                mlp_1_missed.append(ms.testProbabilisticClassifier(mlp_1, testing_set))
+                mlp_2_missed.append(ms.testProbabilisticClassifier(mlp_2, testing_set))
+            else:
+                mlp = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
+                mlp.backpropogation(training_set, hidden_layer_nodes[:num_layers], eta, alpha_momentum, iterations)
+                best_mlp_missed.append(ms.testProbabilisticClassifier(mlp, testing_set))
             # train autoencoders
             ae_1 = ffn.FeedforwardNetwork(len(chunked_data[0][0])-1, clss_list, "autoencoder", True, False)
-            ae_1.regularizeAutoencoder(20)
-            ae_1.tune(training_set[:validation_index], training_set[validation_index:], 1, [], 10, 150)
+            ae_1.regularizeAutoencoder(0.01)
+            ae_1.backpropogation(training_set, hidden_layer_nodes[:1], eta, alpha_momentum, iterations)
             # Autoencoder 1 stacked MLP
-            ae_1_mlp = ffn.FeedforwardNetwork(1, clss_list, "classification", True, True)
-            ae_1.addFFNetwork(ae_1_mlp, True, len(lowest_error_mlp.hidden_layers), training_set[:validation_index], training_set[validation_index:], 10, 100)
+            if not tune:
+                ae_1_mlp = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
+                ae_1.addFFNetwork(ae_1_mlp, True, training_set, hidden_layer_nodes[:num_layers], eta, alpha_momentum, iterations)
 
-            # test algorithms
-            mlp_0_missed.append(ms.testProbabilisticClassifier(mlp_0, testing_set))
-            mlp_1_missed.append(ms.testProbabilisticClassifier(mlp_1, testing_set))
-            mlp_2_missed.append(ms.testProbabilisticClassifier(mlp_2, testing_set))
+            ae_2 = ffn.FeedforwardNetwork(len(chunked_data[0][0])-1, clss_list, "autoencoder", True, False)
+            ae_2.regularizeAutoencoder(0.01)
+            ae_2.backpropogation(training_set, hidden_layer_nodes[:2], eta, alpha_momentum, iterations)
+            # Autoencoder 2 stacked MLP
+            if not tune:
+                ae_2_mlp = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
+                ae_2.addFFNetwork(ae_2_mlp, True, training_set, hidden_layer_nodes[:num_layers], eta, alpha_momentum, iterations)
+
+            ae_3 = ffn.FeedforwardNetwork(len(chunked_data[0][0])-1, clss_list, "autoencoder", True, False)
+            ae_3.regularizeAutoencoder(0.01)
+            #ae_3.tune(training_set[:validation_index], training_set[validation_index:], 3, [], 15, 150)
+            ae_3.backpropogation(training_set, hidden_layer_nodes, eta, alpha_momentum, iterations)
+            # Autoencoder 3 stacked MLP
+            if not tune:
+                ae_3_mlp = ffn.FeedforwardNetwork(len(clss_list), clss_list, "classification", True, True)
+                ae_3.addFFNetwork(ae_3_mlp, True, training_set, hidden_layer_nodes[:num_layers], eta, alpha_momentum, iterations)
+
+            # test autoencoders
+            if tune:
+                ae_1_smape.append(ms.testAutoencoder(ae_1, testing_set))
+                ae_2_smape.append(ms.testAutoencoder(ae_2, testing_set))
+                ae_3_smape.append(ms.testAutoencoder(ae_3, testing_set))
+            else:
+                ae_1_mlp_missed.append(ms.testProbabilisticClassifier(ae_1, testing_set))
+                ae_2_mlp_missed.append(ms.testProbabilisticClassifier(ae_2, testing_set))
+                ae_3_mlp_missed.append(ms.testProbabilisticClassifier(ae_3, testing_set))
     if use_regression:
-        ms.compareRegressors(best_mlp_missed, ae_1_mlp_missed, "MLP", "MLP stacked on 1-layer Autoencoder")
-        ms.compareRegressors(best_mlp_missed, ae_2_mlp_missed, "MLP", "MLP stacked on 2-layer Autoencoder")
-        ms.compareRegressors(best_mlp_missed, ae_3_mlp_missed, "MLP", "MLP stacked on 2-layer Autoencoder")
+        if tune:
+            ms.compareRegressors(mlp_0_missed, mlp_1_missed, "MLP 0-layer", "MLP 1-layer")
+            ms.compareRegressors(mlp_0_missed, mlp_2_missed, "MLP 0-layer", "MLP 2-layer")
+            ms.compareRegressors(mlp_1_missed, mlp_2_missed, "MLP 1-layer", "MLP 2-layer")
+            ae_1_smape_avg = 0
+            ae_2_smape_avg = 0
+            ae_3_smape_avg = 0
+            for i in range(10):
+                ae_1_smape_avg += ae_1_smape[i]
+                ae_2_smape_avg += ae_2_smape[i]
+                ae_3_smape_avg += ae_3_smape[i]
+            print("Autoencoder symmetric mean absolute percentage error:", ae_1_smape_avg/10, ae_2_smape_avg/10, ae_3_smape_avg/10)
+        else:
+            ms.compareRegressors(best_mlp_missed, ae_1_mlp_missed, "MLP", "MLP stacked on 1-layer Autoencoder")
+            ms.compareRegressors(best_mlp_missed, ae_2_mlp_missed, "MLP", "MLP stacked on 2-layer Autoencoder")
+            ms.compareRegressors(best_mlp_missed, ae_3_mlp_missed, "MLP", "MLP stacked on 2-layer Autoencoder")
 
-        ms.compareRegressors(ae_1_mlp_missed, ae_2_mlp_missed, "MLP stacked on 1-layer Autoencoder", "MLP stacked on 2-layer Autoencoder")
-        ms.compareRegressors(ae_1_mlp_missed, ae_3_mlp_missed, "MLP stacked on 1-layer Autoencoder", "MLP stacked on 3-layer Autoencoder")
+            ms.compareRegressors(ae_1_mlp_missed, ae_2_mlp_missed, "MLP stacked on 1-layer Autoencoder", "MLP stacked on 2-layer Autoencoder")
+            ms.compareRegressors(ae_1_mlp_missed, ae_3_mlp_missed, "MLP stacked on 1-layer Autoencoder", "MLP stacked on 3-layer Autoencoder")
 
-        ms.compareRegressors(ae_2_mlp_missed, ae_3_mlp_missed, "MLP stacked on 2-layer Autoencoder","MLP stacked on 3-layer Autoencoder")
+            ms.compareRegressors(ae_2_mlp_missed, ae_3_mlp_missed, "MLP stacked on 2-layer Autoencoder","MLP stacked on 3-layer Autoencoder")
     else:
-        ms.compareProbabilisticClassifiers(cn_rbfn_missed, c_rbfn_missed, "CNN RBF", "k-means RBF")
-        print("CNN RBF", "k-means RBF", "convergence time")
-        ms.pairedTTest(cn_rbfn_time, c_rbfn_time, 0.05)
-        ms.compareProbabilisticClassifiers(cn_rbfn_missed, m_rbfn_missed, "CNN RBF", "PAM RBF")
-        print("CNN RBF", "PAM RBF", "convergence time")
-        ms.pairedTTest(cn_rbfn_time, m_rbfn_time, 0.05)
-        ms.compareProbabilisticClassifiers(cn_rbfn_missed, mlp_0_missed, "CNN RBF", "0-layer MLP")
-        print("CNN RBF", "0-layer MLP", "convergence time")
-        ms.pairedTTest(cn_rbfn_time, mlp_0_time, 0.05)
-        ms.compareProbabilisticClassifiers(cn_rbfn_missed, mlp_1_missed, "CNN RBF", "1-layer MLP")
-        print("CNN RBF", "1-layer MLP", "convergence time")
-        ms.pairedTTest(cn_rbfn_time, mlp_1_time, 0.05)
-        ms.compareProbabilisticClassifiers(cn_rbfn_missed, mlp_2_missed, "CNN RBF", "2-layer MLP")
-        print("CNN RBF", "2-layer MLP", "convergence time")
-        ms.pairedTTest(cn_rbfn_time, mlp_2_time, 0.05)
+        if tune:
+            ms.compareRegressors(mlp_0_missed, mlp_1_missed, "MLP 0-layer", "MLP 1-layer")
+            ms.compareRegressors(mlp_0_missed, mlp_2_missed, "MLP 0-layer", "MLP 2-layer")
+            ms.compareRegressors(mlp_1_missed, mlp_2_missed, "MLP 1-layer", "MLP 2-layer")
+            ae_1_smape_avg = 0
+            ae_2_smape_avg = 0
+            ae_3_smape_avg = 0
+            for i in range(10):
+                ae_1_smape_avg += ae_1_smape[i]
+                ae_2_smape_avg += ae_2_smape[i]
+                ae_3_smape_avg += ae_3_smape[i]
+            print("Autoencoder symmetric mean absolute percentage error:", ae_1_smape_avg / 10, ae_2_smape_avg / 10, ae_3_smape_avg / 10)
+        else:
+            ms.compareProbabilisticClassifiers(best_mlp_missed, ae_1_mlp_missed, "MLP", "MLP stacked on 1-layer Autoencoder")
+            ms.compareProbabilisticClassifiers(best_mlp_missed, ae_2_mlp_missed, "MLP", "MLP stacked on 2-layer Autoencoder")
+            ms.compareProbabilisticClassifiers(best_mlp_missed, ae_3_mlp_missed, "MLP", "MLP stacked on 3-layer Autoencoder")
 
-        ms.compareProbabilisticClassifiers(c_rbfn_missed, m_rbfn_missed, "k-means RBF", "PAM RBF")
-        print("k-means RBF", "PAM RBF", "convergence time")
-        ms.pairedTTest(c_rbfn_time, m_rbfn_time, 0.05)
-        ms.compareProbabilisticClassifiers(c_rbfn_missed, mlp_0_missed, "k-means RBF", "0-layer MLP")
-        print("k-means RBF", "0-layer MLP", "convergence time")
-        ms.pairedTTest(c_rbfn_time, mlp_0_time, 0.05)
-        ms.compareProbabilisticClassifiers(c_rbfn_missed, mlp_1_missed, "k-means RBF", "1-layer MLP")
-        print("k-means RBF", "1-layer MLP", "convergence time")
-        ms.pairedTTest(c_rbfn_time, mlp_1_time, 0.05)
-        ms.compareProbabilisticClassifiers(c_rbfn_missed, mlp_2_missed, "k-means RBF", "2-layer MLP")
-        print("k-means RBF", "2-layer MLP", "convergence time")
-        ms.pairedTTest(c_rbfn_time, mlp_2_time, 0.05)
+            ms.compareProbabilisticClassifiers(ae_1_mlp_missed, ae_2_mlp_missed, "MLP stacked on 1-layer Autoencoder", "MLP stacked on 2-layer Autoencoder")
+            ms.compareProbabilisticClassifiers(ae_1_mlp_missed, ae_3_mlp_missed, "MLP stacked on 1-layer Autoencoder", "MLP stacked on 3-layer Autoencoder")
 
-        ms.compareProbabilisticClassifiers(m_rbfn_missed, mlp_0_missed, "PAM RBF", "0-layer MLP")
-        print("PAM RBF", "0-layer MLP", "convergence time")
-        ms.pairedTTest(m_rbfn_time, mlp_0_time, 0.05)
-        ms.compareProbabilisticClassifiers(m_rbfn_missed, mlp_1_missed, "PAM RBF", "1-layer MLP")
-        print("PAM RBF", "1-layer MLP", "convergence time")
-        ms.pairedTTest(m_rbfn_time, mlp_1_time, 0.05)
-        ms.compareProbabilisticClassifiers(m_rbfn_missed, mlp_2_missed, "PAM RBF", "2-layer MLP")
-        print("PAM RBF", "2-layer MLP", "convergence time")
-        ms.pairedTTest(m_rbfn_time, mlp_2_time, 0.05)
+            ms.compareProbabilisticClassifiers(ae_2_mlp_missed, ae_3_mlp_missed, "MLP stacked on 2-layer Autoencoder", "MLP stacked on 3-layer Autoencoder")
 
-        ms.compareProbabilisticClassifiers(mlp_0_missed, mlp_1_missed, "0-layer MLP", "1-layer MLP")
-        print("0-layer MLP", "1-layer MLP", "convergence time")
-        ms.pairedTTest(mlp_0_time, mlp_1_time, 0.05)
-        ms.compareProbabilisticClassifiers(mlp_0_missed, mlp_2_missed, "0-layer MLP", "2-layer MLP")
-        print("0-layer MLP", "2-layer MLP", "convergence time")
-        ms.pairedTTest(mlp_0_time, mlp_2_time, 0.05)
 
-        ms.compareProbabilisticClassifiers(mlp_1_missed, mlp_2_missed, "1-layer MLP", "2-layer MLP")
-        print("1-layer MLP", "2-layer MLP", "convergence time")
-        ms.pairedTTest(mlp_1_time, mlp_2_time, 0.05)
-
-        print("average CNN RBF time:", ms.getMean(cn_rbfn_time, len(cn_rbfn_time)))
-        print("average k-means RBF time:", ms.getMean(c_rbfn_time, len(c_rbfn_time)))
-        print("average PAM RBF time:", ms.getMean(m_rbfn_time, len(m_rbfn_time)))
-        print("average 0-layer MLP time:", ms.getMean(mlp_0_time, len(mlp_0_time)))
-        print("average 1-layer MLP time:", ms.getMean(mlp_1_time, len(mlp_1_time)))
-        print("average 2-layer MLP time:", ms.getMean(mlp_2_time, len(mlp_2_time)))
-
-if(len(sys.argv) > 2):
+if(len(sys.argv) > 3):
     chunks, class_list = openFiles(sys.argv[1])
     uses_regression = False
+    tun = False
     if sys.argv[2] == 'r':
         print("Using regression")
         uses_regression = True
     else:
         print("Using classification")
+    if sys.argv[3] == "tune":
+        print("Tuning")
+        tun = True
 
     print("Using k=3")
-    trainAndTest(chunks, class_list, 3, uses_regression)
+    hidden_layer_nodes = []
+    for i in range(3):
+        hidden_layer_nodes.append(len(chunks[0][0])-1)
+    trainAndTest(chunks, class_list, 3, uses_regression, 0, hidden_layer_nodes, 0.15, 0.3, 15, tun)
 else:
     print("Usage:\t<dataFile.data> <r> (for regression, use any other character for classification)")

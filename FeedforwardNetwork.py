@@ -88,7 +88,7 @@ class FeedforwardNetwork:
                         delta_weights[example_num][0].append([])
                         if not self.regularize:
                             if layer_num != 0:
-                                error = hidden_outputs[-2][output_node + 1] - outputs[output_node]
+                                error = hidden_outputs[-2][output_node] - outputs[output_node]
                             else:
                                 # error = feature val - predicted feature val
                                 error = input_data[example_num][output_node] - outputs[output_node]
@@ -97,7 +97,7 @@ class FeedforwardNetwork:
                             for weight_num in range(len(weights)):
                                 sum_of_weights += abs(weights[weight_num])
                             if layer_num != 0:
-                                error = hidden_outputs[-2][output_node + 1] - outputs[output_node] + (self.lmbda * sum_of_weights)
+                                error = hidden_outputs[-2][output_node] - outputs[output_node] + (self.lmbda * sum_of_weights)
                             else:
                                 # error = feature val - predicted feature val + lambda*(sum of weights)
                                 error = input_data[example_num][output_node] - outputs[output_node] + (self.lmbda * sum_of_weights)
@@ -105,7 +105,7 @@ class FeedforwardNetwork:
                         if layer_num == 0:
                             loss[output_node] += ms.getDecimalSMAPE(input_data[example_num][output_node], outputs[output_node])
                         else:
-                            loss[output_node] += ms.getDecimalSMAPE(hidden_outputs[-2][output_node + 1], outputs[output_node])
+                            loss[output_node] += ms.getDecimalSMAPE(hidden_outputs[-2][output_node], outputs[output_node])
                         for weight_num in range(len(weights)):
                             delta_weights[example_num][0][output_node].append(eta * error * hidden_outputs[-1][weight_num])
                             if (alpha_momentum > 0) and (example_num > 0):
@@ -134,9 +134,17 @@ class FeedforwardNetwork:
                         #current_weights.append(copy.deepcopy(weights))
                         for weight_num in range(len(weights)):
                             if layer_num != 0:
-                                delta_weights[example_num][1][node].append(eta * current_error * (hidden_outputs[-2][weight_num]))
+                                input = hidden_outputs[-2][weight_num]
                             else:
-                                delta_weights[example_num][1][node].append(eta * current_error * (input_data[example_num][weight_num]))
+                                if weight_num == 0:
+                                    input = 1
+                                else:
+                                    input = input_data[example_num][weight_num - 1]
+                            #if layer_num != 0:
+                            #    delta_weights[example_num][1][node].append(eta * current_error * (hidden_outputs[-2][weight_num]))
+                            #else:
+                            #    delta_weights[example_num][1][node].append(eta * current_error * (input_data[example_num][weight_num]))
+                            delta_weights[example_num][1][node].append(eta * current_error * input)
                             if (alpha_momentum > 0) and (example_num > 0):
                                 weights[weight_num] = weights[weight_num] + delta_weights[example_num][1][node][weight_num] + alpha_momentum * prev_delta_weights[1][node][weight_num]
                             else:
@@ -177,17 +185,14 @@ class FeedforwardNetwork:
             self.output_layer = []
 
 
-    # Backpropogation
-    def train(self, input_data, hidden_layer_nodes, eta, alpha_momentum, iterations):
+    def backpropogation(self, input_data, hidden_layer_nodes, eta, alpha_momentum, iterations):
         print("Training",self.name,"using: eta =",eta,", alpha =",alpha_momentum,", nodes by layer =",hidden_layer_nodes)
-        #-create hidden nodes-#
         for layer in range(len(hidden_layer_nodes)):
             if layer == 0:
-                # if first hidden layer, number of inputs is number of features-1
-                # since the node adds a bias node by default, and that is not desired here
-                inputs = len(input_data[0])-2
+                # if first hidden layer, number of inputs is number of features
+                inputs = len(input_data[0])-1
             else:
-                # else number of inputs is number of outputs from previous layer
+                # else number of inputs is number of nodes from previous layer (bias added automatically)
                 inputs = len(self.hidden_layers[-1])
             self.hidden_layers.append([])
             for node in range(hidden_layer_nodes[layer]):
@@ -201,7 +206,7 @@ class FeedforwardNetwork:
             inputs = len(self.hidden_layers[-1])
         else:
             # set inputs equal to number of features of input data
-            inputs = len(input_data[0]) - 2
+            inputs = len(input_data[0]) - 1
         for output_node in range(self.out_k):
             self.output_layer.append(unit.Neuron(inputs, self.logistic_output))
             if not ((self.output_type == "regression") or (self.output_type == "autoencoder")):
@@ -235,7 +240,8 @@ class FeedforwardNetwork:
                             hidden_outputs.append(self.getHiddenLayerOutput(hidden_outputs[-1], layer))
                 # there are no hidden layers
                 else:
-                    hidden_outputs.append(input_data[example_num][:-1])
+                    # add bias node
+                    hidden_outputs.append([1] + input_data[example_num][:-1])
                 # get outputs by layer
                 # outputs [layer][node]
                 outputs = []
@@ -316,9 +322,14 @@ class FeedforwardNetwork:
                         current_weights.append(copy.deepcopy(weights))
                         for weight_num in range(len(weights)):
                             if layer != 0:
-                                delta_weights[example_num][layer+1][node].append(eta * current_error[node] * (hidden_outputs[layer-1][weight_num]))
+                                input = hidden_outputs[layer - 1][weight_num]
                             else:
-                                delta_weights[example_num][layer+1][node].append(eta * current_error[node] * (input_data[example_num][weight_num]))
+                                input = input_data[example_num][weight_num - 1]
+                            delta_weights[example_num][layer + 1][node].append(eta * current_error[node] * input)
+                            #if layer != 0:
+                            #    delta_weights[example_num][layer+1][node].append(eta * current_error[node] * (hidden_outputs[layer-1][weight_num]))
+                            #else:
+                            #    delta_weights[example_num][layer+1][node].append(eta * current_error[node] * (input_data[example_num][weight_num]))
                             if (alpha_momentum > 0) and (example_num > 0):
                                 weights[weight_num] = weights[weight_num] + delta_weights[example_num][layer+1][node][weight_num] + alpha_momentum * prev_delta_weights[layer+1][node][weight_num]
                             else:
@@ -394,7 +405,7 @@ class FeedforwardNetwork:
                 self.output_layer = []
             print("Selected", self.name, "lambda =", self.lmbda)
             hidden_layer_nodes = []
-        if (hidden_layer_nodes == []) and (num_layers != -1):
+        if hidden_layer_nodes == []:
             print("Tuning",self.name,"nodes per layer for",num_layers,"layers")
             for layer in range(num_layers):
                 less_nodes = 1
@@ -564,9 +575,10 @@ class FeedforwardNetwork:
         done = time.time()
         self.convergence_time = done - now
 
-    def regularizeAutoencoder(self, max_error):
+    def regularizeAutoencoder(self, lmbda):
         self.regularize = True
-        self.allowedError = max_error
+        self.lmbda = lmbda
+        #self.allowedError = max_error
 
     def predict(self, new_obs):
         if self.output_type == "regression":
@@ -617,6 +629,8 @@ class FeedforwardNetwork:
         return self.output_layer[0].getOutput(hidden_outputs)
 
     def classify(self, new_obs):
+        if self.output_type == "autoencoder":
+            return self.ffn.classify(new_obs)
         hidden_outputs = []
         if len(self.hidden_layers) > 0:
             for layer in range(len(self.hidden_layers)):
@@ -649,7 +663,7 @@ class FeedforwardNetwork:
             mse += error * error
         return mse / len(testing_set)
 
-    def addFFNetwork(self, ff, tune, num_layers, training_set, validation_set, tuning_iterations, iterations):
+    def addFFNetwork(self, ff, tune, training_set, hidden_layer_nodes, eta, alpha_momentum, iterations):
         if self.output_type == "autoencoder":
             # if the given network is already tuned, simply place on top of the autoencoder
             if not tune:
@@ -660,11 +674,11 @@ class FeedforwardNetwork:
                 predicted = self.predict(training_set[example][:-1])
                 predicted.append(training_set[example][-1])
                 training_output.append(predicted)
-            validation_output = []
-            for example in range(len(validation_set)):
-                predicted = self.predict(validation_set[example][:-1])
-                predicted.append(training_set[example][-1])
-                validation_output.append(predicted)
+            #validation_output = []
+            #for example in range(len(validation_set)):
+            #    predicted = self.predict(validation_set[example][:-1])
+            #    predicted.append(training_set[example][-1])
+            #    validation_output.append(predicted)
             self.ffn = ff
             # setting num_layers to -1 signifies that the autoencoder should train a 0, 1, and 2 layer FFN
             # and pick the best
@@ -672,4 +686,5 @@ class FeedforwardNetwork:
                 pass
             else:
                 print("Tuning stacked FFN")
-                self.ffn.tune(training_output, validation_output, num_layers, [], tuning_iterations, iterations)
+                #self.ffn.tune(training_output, validation_output, num_layers, [], tuning_iterations, iterations)
+                self.ffn.backpropogation(training_output, hidden_layer_nodes, eta, alpha_momentum, iterations)
