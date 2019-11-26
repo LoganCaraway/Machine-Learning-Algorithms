@@ -324,7 +324,10 @@ class FeedforwardNetwork:
                             if layer != 0:
                                 input = hidden_outputs[layer - 1][weight_num]
                             else:
-                                input = input_data[example_num][weight_num - 1]
+                                if weight_num == 0:
+                                    input = 1
+                                else:
+                                    input = input_data[example_num][weight_num - 1]
                             delta_weights[example_num][layer + 1][node].append(eta * current_error[node] * input)
                             #if layer != 0:
                             #    delta_weights[example_num][layer+1][node].append(eta * current_error[node] * (hidden_outputs[layer-1][weight_num]))
@@ -682,9 +685,9 @@ class FeedforwardNetwork:
             self.ffn = ff
             # setting num_layers to -1 signifies that the autoencoder should train a 0, 1, and 2 layer FFN
             # and pick the best
-            if num_layers == -1:
-                pass
-            else:
-                print("Tuning stacked FFN")
-                #self.ffn.tune(training_output, validation_output, num_layers, [], tuning_iterations, iterations)
-                self.ffn.backpropogation(training_output, hidden_layer_nodes, eta, alpha_momentum, iterations)
+            #if num_layers == -1:
+            #    pass
+            #else:
+            print("Tuning stacked FFN on top of",len(self.hidden_layers),"layer autoencoder")
+            #self.ffn.tune(training_output, validation_output, num_layers, [], tuning_iterations, iterations)
+            self.ffn.backpropogation(training_output, hidden_layer_nodes, eta, alpha_momentum, iterations)
