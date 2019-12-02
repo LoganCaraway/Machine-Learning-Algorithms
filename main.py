@@ -109,7 +109,7 @@ def getClasses(data):
     return classes
 
 def trainAndTest(chunked_data, clss_list, k, use_regression, num_layers, hidden_layer_nodes, eta, alpha_momentum, iterations, tune):
-    lmbda = 0.0001
+    lmbda = 0.01
     best_mlp_missed = []
     mlp_0_missed = []
     mlp_1_missed = []
@@ -272,7 +272,7 @@ def trainAndTest(chunked_data, clss_list, k, use_regression, num_layers, hidden_
         else:
             ms.compareRegressors(best_mlp_missed, ae_1_mlp_missed, "MLP", "MLP stacked on 1-layer Autoencoder")
             ms.compareRegressors(best_mlp_missed, ae_2_mlp_missed, "MLP", "MLP stacked on 2-layer Autoencoder")
-            ms.compareRegressors(best_mlp_missed, ae_3_mlp_missed, "MLP", "MLP stacked on 2-layer Autoencoder")
+            ms.compareRegressors(best_mlp_missed, ae_3_mlp_missed, "MLP", "MLP stacked on 3-layer Autoencoder")
 
             ms.compareRegressors(ae_1_mlp_missed, ae_2_mlp_missed, "MLP stacked on 1-layer Autoencoder", "MLP stacked on 2-layer Autoencoder")
             ms.compareRegressors(ae_1_mlp_missed, ae_3_mlp_missed, "MLP stacked on 1-layer Autoencoder", "MLP stacked on 3-layer Autoencoder")
@@ -319,6 +319,6 @@ if(len(sys.argv) > 3):
     hidden_layer_nodes = []
     for i in range(3):
         hidden_layer_nodes.append(5*(len(chunks[0][0])-1))
-    trainAndTest(chunks, class_list, 3, uses_regression, 2, hidden_layer_nodes, 0.1, 0, 100, tun)
+    trainAndTest(chunks, class_list, 3, uses_regression, 1, hidden_layer_nodes, 0.3, 0.2, 200, tun)
 else:
-    print("Usage:\t<dataFile.data> <r> (for regression, use any other character for classification)")
+    print("Usage:\t<dataFile.data> <r> <tune/notune>(for regression, use any other character for classification)")
