@@ -121,7 +121,7 @@ def trainAndTest(chunked_data, clss_list, k, use_regression, num_layers, hidden_
     ae_2_smape = []
     ae_3_smape = []
     for testing in range(10):
-        print("Fold: ",testing,"of 10 fold cross validation")
+        print("Fold: ",testing+1,"of 10 fold cross validation")
         training_set = []
 
         testing_set = chunked_data[testing]
@@ -131,7 +131,6 @@ def trainAndTest(chunked_data, clss_list, k, use_regression, num_layers, hidden_
                 for x in range(len(chunked_data[train])):
                     training_set.append(chunked_data[train][x])
 
-        validation_index = int((float(len(training_set)) * 8 / 10)) - 1
         if use_regression:
             if tune:
                 # train multi layer perceptrons
@@ -147,19 +146,6 @@ def trainAndTest(chunked_data, clss_list, k, use_regression, num_layers, hidden_
                 mlp_1_missed.append(ms.testRegressor(mlp_1, testing_set))
                 mlp_2_missed.append(ms.testRegressor(mlp_2, testing_set))
 
-            #lowest_error_mlp = mlp_0
-            #lowest_error = mlp_0_missed
-            #print("Average absolute error for 0-layer MLP: ", ms.getMean(mlp_0_missed,len(mlp_0_missed)))
-            #print("Average absolute error for 1-layer MLP: ", ms.getMean(mlp_1_missed, len(mlp_1_missed)))
-            #print("Average absolute error for 2-layer MLP: ", ms.getMean(mlp_2_missed, len(mlp_2_missed)))
-            #if ms.getMean(mlp_1_missed,len(mlp_1_missed)) < ms.getMean(mlp_0_missed,len(mlp_0_missed)):
-            #    lowest_error_mlp = mlp_1
-            #    lowest_error = mlp_1_missed
-            #if ms.getMean(mlp_2_missed,len(mlp_2_missed)) < ms.getMean(lowest_error,len(lowest_error)):
-            #    lowest_error_mlp = mlp_2
-            #    lowest_error = mlp_2_missed
-            #best_mlp_missed.append(lowest_error)
-            #print("Selected MLP with",len(lowest_error_mlp.hidden_layers), "layers")
             else:
                 mlp = ffn.FeedforwardNetwork(1, clss_list, "regression", True, False)
                 mlp.backpropogation(training_set, hidden_layer_nodes[:num_layers], eta, alpha_momentum, iterations)
@@ -315,10 +301,9 @@ if(len(sys.argv) > 3):
         print("Tuning")
         tun = True
 
-    print("Using k=3")
     hidden_layer_nodes = []
     for i in range(3):
         hidden_layer_nodes.append(5*(len(chunks[0][0])-1))
-    trainAndTest(chunks, class_list, 3, uses_regression, 1, hidden_layer_nodes, 0.3, 0.2, 200, tun)
+    trainAndTest(chunks, class_list, 3, uses_regression, 2, hidden_layer_nodes, 0.1, 0, 100, tun)
 else:
     print("Usage:\t<dataFile.data> <r> <tune/notune>(for regression, use any other character for classification)")
